@@ -1,7 +1,7 @@
 package:
   name: keycloak-26.4
-  version: "26.4.0"
-  epoch: 1 # GHSA-3p8m-j85q-pgmj
+  version: "26.4.7"
+  epoch: 2 # GHSA-84h7-rjj3-6jx4
   description: Open Source Identity and Access Management For Modern Applications and Services
   copyright:
     - license: Apache-2.0
@@ -47,7 +47,17 @@ pipeline:
     with:
       repository: https://github.com/keycloak/keycloak
       tag: ${{package.version}}
-      expected-commit: 4e25e47b3c3619b3a0593448e1dfc0dd786cfbe1
+      expected-commit: 38c38721ad4c1303fa2a1bc24ccece4799a8a242
+
+  - uses: patch
+    with:
+      # Include package.json in order to get scanners to pick up on npm
+      # dependencies.
+      # Note: This over-matches the dependencies, since this also picks up
+      # everything in package.json, including dev dependencies.
+      # See https://github.com/keycloak/keycloak/issues/36747 for upstream
+      # discussion for how to fix this.
+      patches: npm-packages.patch
 
   - uses: maven/pombump
     with:
@@ -71,7 +81,7 @@ pipeline:
 
       mkdir -p ${{targets.destdir}}/usr/share/java
       unzip -d ${{targets.destdir}}/usr/share/java quarkus/dist/target/keycloak-*.zip
-      cp -avR ${{targets.destdir}}/usr/share/java/keycloak-* ${{targets.destdir}}/usr/share/java/keycloak
+      mv ${{targets.destdir}}/usr/share/java/keycloak-* ${{targets.destdir}}/usr/share/java/keycloak
 
       # Create an empty data directory for keycloak. Required by the UI to store some data.
       mkdir -p ${{targets.destdir}}/usr/share/java/keycloak/data
@@ -251,6 +261,7 @@ subpackages:
           KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-}
           KC_BOOTSTRAP_ADMIN_PASSWORD: $KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD
           KC_HTTP_MANAGEMENT_RELATIVE_PATH: /
+          KEYCLOAK_DAEMON_USER: root
       pipeline:
         - uses: iamguarded/test-compat
           with:

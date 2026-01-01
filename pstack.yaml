@@ -1,6 +1,6 @@
 package:
   name: pstack
-  version: "2.14.2"
+  version: "2.16"
   epoch: 0
   description: "Print stack traces from running processes, or core files."
   copyright:
@@ -21,7 +21,7 @@ pipeline:
     with:
       repository: https://github.com/peadar/pstack
       tag: v${{package.version}}
-      expected-commit: 9ca3553e2a0ff01edac6da70c7c4f7e86a4666c4
+      expected-commit: 417e91cb3a2cfa28236f67dd28f43afca4de3a56
 
   - name: Set directories
     runs: |
