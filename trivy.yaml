@@ -1,7 +1,7 @@
 package:
   name: trivy
-  version: "0.67.1"
-  epoch: 0 # CVE-2025-47910
+  version: "0.68.2"
+  epoch: 0 # GHSA-j5w8-q4qc-rx2x
   description: Simple and comprehensive vulnerability scanner for containers
   copyright:
     - license: Apache-2.0
@@ -9,7 +9,7 @@ package:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: cbed239f3990f5d366c4604a0f57f7785e7e9ec5
+      expected-commit: 0c40a8d4b9b943f1b679a20f8ba3cb61c94831de
       repository: https://github.com/aquasecurity/trivy
       tag: v${{package.version}}
 

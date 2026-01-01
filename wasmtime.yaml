@@ -1,6 +1,6 @@
 package:
   name: wasmtime
-  version: "37.0.2"
+  version: "40.0.0"
   epoch: 0 # GHSA-xwfj-jgwm-7wp5
   description: "A fast and secure runtime for WebAssembly"
   copyright:
@@ -22,9 +22,7 @@ pipeline:
     with:
       repository: https://github.com/bytecodealliance/wasmtime
       tag: v${{package.version}}
-      expected-commit: 7a95dd3259f40707966445e9c32d8e1a3bf9b326
-
-  - uses: rust/cargobump
+      expected-commit: 0807b003ef6250372b57cc083d2df28f8728abee
 
   - name: Configure and build
     runs: |
@@ -33,9 +31,6 @@ pipeline:
       # mitigate GHSA-2qv5-7mw5-j3cg
       cargo update spin --precise 0.9.8
 
-      # mitigate GHSA-h97m-ww89-6jmq
-      cargo update url --precise 2.5.4
-      cargo update idna --precise 1.0.3
 
       # Fix auditable builds: we're tripping over
       # https://github.com/rust-secure-code/cargo-auditable/issues/124 so need

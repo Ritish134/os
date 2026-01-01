@@ -1,6 +1,6 @@
 package:
   name: py3-pymongo
-  version: "4.15.3"
+  version: "4.15.5"
   epoch: 0
   description: Python driver for MongoDB <http://www.mongodb.org>
   copyright:
@@ -30,7 +30,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 611681140700c774d606d0cc1bce288b2b6683f8
+      expected-commit: 7a8420caad3244afe6f44af6e9caf3d6d25c1247
       repository: https://github.com/mongodb/mongo-python-driver
       tag: ${{package.version}}
 
