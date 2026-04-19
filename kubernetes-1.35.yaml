@@ -1,13 +1,17 @@
 package:
   name: kubernetes-1.35
-  version: "1.35.0"
-  epoch: 1
+  version: "1.35.4"
+  epoch: 0 # GHSA-p77j-4mvh-x3m3
   description: Production-Grade Container Scheduling and Management
   copyright:
     - license: Apache-2.0
   dependencies:
     provides:
       - kubernetes=${{package.full-version}}
+  resources:
+    cpu: "2"
+    memory: 8Gi
+    disk: 8Gi
 
 environment:
   contents:
@@ -43,7 +47,128 @@ pipeline:
     with:
       repository: https://github.com/kubernetes/kubernetes
       tag: v${{package.version}}
-      expected-commit: 66452049f3d692768c39c797b21b793dce80314e
+      expected-commit: 7b8c6cf0edd376b3d7c2f255142977c7f93db258
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/kubelet
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/kms/internal/plugins/_mock
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/kms
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/externaljwt
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/dynamic-resource-allocation
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/cri-api
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/sample-apiserver
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/pod-security-admission
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/kube-aggregator
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/cri-client
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/controller-manager
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/component-base
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/cloud-provider
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/apiserver
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: staging/src/k8s.io/apiextensions-apiserver
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      work: true
 
   # fixes mismatch between current go version and what is defined in go.work
   - runs: |
@@ -156,7 +281,7 @@ subpackages:
     description: An agent that runs on each node in a Kubernetes cluster making sure that containers are running in a Pod
     dependencies:
       runtime:
-        - ip6tables
+        - iptables
     pipeline:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/usr/bin
@@ -195,8 +320,7 @@ subpackages:
     description: Kubernetes network proxy that runs on each node
     dependencies:
       runtime:
-        - ip6tables
-        - nftables
+        - iptables-wrappers
         - kmod
         - conntrack-tools
     pipeline:
@@ -295,14 +419,12 @@ subpackages:
         - uses: test/tw/symlink-check
           with:
             allow-absolute: true
-        - uses: test/virtualpackage
+        - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: "${{range.key}}-default"
-            real-pkg-name: "${{subpkg.name}}"
-        - uses: test/virtualpackage
+        - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: "${{range.key}}"
-            real-pkg-name: "${{subpkg.name}}"
 
   - range: components
     name: "${{range.key}}-${{vars.kubernetes-version}}-default-compat"
@@ -320,10 +442,9 @@ subpackages:
         - uses: test/tw/symlink-check
           with:
             allow-absolute: true
-        - uses: test/virtualpackage
+        - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: "${{range.key}}-default-compat"
-            real-pkg-name: "${{subpkg.name}}"
 
   - name: kubernetes-${{vars.kubernetes-version}}-default
     description: "Compatibility meta package to set ${{vars.kubernetes-version}} as the default kubernetes, and add packages to their shortened path"

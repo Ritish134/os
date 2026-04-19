@@ -1,10 +1,13 @@
 package:
   name: libedit
   version: 3.1
-  epoch: 13
+  epoch: 16 # go/wolfi-rsc/libedit
   description: "the NetBSD editline library"
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
@@ -52,6 +55,7 @@ subpackages:
         - ncurses-dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -63,6 +67,36 @@ update:
     identifier: 1599
 
 test:
+  environment:
+    contents:
+      packages:
+        - libedit-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
     - uses: test/no-docs
+    - name: Test libedit compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <histedit.h>
+        #include <stdio.h>
+
+        int main() {
+            HistEvent ev;
+            History *hist = history_init();
+            if (hist == NULL) {
+                fprintf(stderr, "FAIL: history_init returned NULL\n");
+                return 1;
+            }
+            history(hist, &ev, H_SETSIZE, 100);
+            history_end(hist);
+            printf("SUCCESS: libedit history functions work\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libedit) test.c -o test $(pkg-config --libs libedit)
+        ./test

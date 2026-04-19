@@ -1,17 +1,20 @@
 package:
   name: dive
   version: "0.13.1"
-  epoch: 10 # CVE-2025-61725
+  epoch: 15 # CVE-2026-32280
   description: A tool for exploring each layer in a docker image
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     CGO_ENABLED: "0"
 
@@ -27,6 +30,7 @@ pipeline:
       deps: |-
         golang.org/x/net@v0.38.0
         github.com/go-viper/mapstructure/v2@v2.4.0
+        github.com/docker/cli@v29.2.0
       replaces: google.golang.org/genproto=google.golang.org/genproto@v0.0.0-20240730163845-b1a4ccb954bf
 
   - uses: go/build

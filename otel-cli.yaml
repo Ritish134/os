@@ -1,16 +1,22 @@
 package:
   name: otel-cli
   version: "0.4.5"
-  epoch: 8 # CVE-2025-61729
+  epoch: 20 # CVE-2026-32280
   description: OpenTelemetry CLI Application
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
       - busybox
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
@@ -23,6 +29,8 @@ pipeline:
     with:
       deps: |-
         golang.org/x/net@v0.38.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
@@ -43,5 +51,7 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        otel-cli --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: otel-cli

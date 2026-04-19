@@ -1,18 +1,21 @@
 package:
   name: terraform-provider-azurerm
-  version: "4.57.0"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "4.69.0"
+  epoch: 0 # go/wolfi-rsc/terraform-provider-azurerm
   description: Terraform provider for Azure Resource Manager
   copyright:
     - license: MPL-2.0
   dependencies:
     runtime:
       - terraform-local-provider-config
+  resources:
+    cpu: "8"
+    memory: 16Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 3948804cb9f1201332629b828764dfb36cbb30a0
+      expected-commit: ca5680b0911021533342f9280767dc6bc4fa5eee
       repository: https://github.com/hashicorp/terraform-provider-azurerm
       tag: v${{package.version}}
 
@@ -35,6 +38,72 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - jq
+        - terraform
   pipeline:
-    - runs: |
-        terraform-provider-azurerm --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: terraform-provider-azurerm
+    - name: Verify provider mirror symlinks
+      uses: test/tw/symlink-check
+      with:
+        allow-absolute: true
+    - name: Terraform init with provider mirror
+      runs: |
+        set -euo pipefail
+
+        # Create a working directory for terraform
+        mkdir -p /tmp/tf-test
+        cd /tmp/tf-test
+
+        # Create a minimal Terraform config requiring the azurerm provider
+        tee main.tf <<'EOF'
+        terraform {
+          required_providers {
+            azurerm = {
+              source  = "hashicorp/azurerm"
+              version = "${{package.version}}"
+            }
+          }
+        }
+        EOF
+
+        # Configure Terraform to use the filesystem mirror (no network needed)
+        export TF_CLI_CONFIG_FILE=/tmp/tf-test/terraformrc
+        tee "$TF_CLI_CONFIG_FILE" <<'EOF'
+        provider_installation {
+          filesystem_mirror {
+            path = "/terraform/provider-mirror"
+          }
+          direct {
+            exclude = ["registry.terraform.io/*/*"]
+          }
+        }
+        EOF
+
+        # Run terraform init - this verifies Terraform can discover and load the provider
+        terraform init
+
+        # Verify the provider was installed
+        terraform version | grep -F "azurerm"
+    - name: Verify provider schema
+      runs: |
+        set -euo pipefail
+
+        cd /tmp/tf-test
+        export TF_CLI_CONFIG_FILE=/tmp/tf-test/terraformrc
+
+        # Get the provider schema and verify expected resource types exist
+        terraform providers schema -json > /tmp/schema.json
+
+        # Verify the azurerm provider is present and key resource types are exposed
+        jq -e '.provider_schemas["registry.terraform.io/hashicorp/azurerm"].resource_schemas | has("azurerm_resource_group")' /tmp/schema.json
+
+environment:
+  contents:
+    packages:
+      - go-1.25

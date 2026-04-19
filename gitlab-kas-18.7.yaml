@@ -1,13 +1,19 @@
 package:
   name: gitlab-kas-18.7
-  version: "18.7.0"
-  epoch: 0 # CVE-2025-61729
+  version: "18.7.6"
+  epoch: 0 # CVE-2026-27139
   description: GitLab KAS is a component installed together with GitLab. It is required to manage the GitLab agent for Kubernetes.
   copyright:
     - license: MIT
   dependencies:
     provides:
       - gitlab-kas=${{package.full-version}}
+  resources:
+    cpu: "5"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -24,7 +30,7 @@ pipeline:
     with:
       repository: https://gitlab.com/gitlab-org/cluster-integration/gitlab-agent
       tag: v${{package.version}}
-      expected-commit: a98aa23f4171ac24e544cd5a2ca0a32fc2c715d2
+      expected-commit: b69803557fdcfebd84a9913c93fe5aa2ec6da26d
 
   - uses: go/build
     with:
@@ -65,6 +71,7 @@ test:
       packages:
         - wait-for-it
         - curl
+        - openssl
         - valkey
         - valkey-cli
   pipeline:
@@ -133,3 +140,8 @@ update:
   git:
     strip-prefix: v
     tag-filter-prefix: v18.7
+
+environment:
+  contents:
+    packages:
+      - go-1.25

@@ -2,16 +2,17 @@
 package:
   name: xmessage
   version: 1.0.7
-  epoch: 4
+  epoch: 8 # go/wolfi-rsc/xmessage
   description: Display a message or query in a window
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
       - ca-certificates-bundle
@@ -25,10 +26,11 @@ environment:
       - util-macros
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 703fccb7a0b772d61d7e603c189b9739866aa97ba985c727275420f829a30356
-      uri: https://xorg.freedesktop.org/archive/individual/app/xmessage-${{package.version}}.tar.xz
+      repository: https://gitlab.freedesktop.org/xorg/app/xmessage
+      tag: xmessage-${{package.version}}
+      expected-commit: 3b4db0f96b58076b17d1ae20b4c6a38a522dca58
 
   - uses: autoconf/configure
 
@@ -53,14 +55,20 @@ subpackages:
     dependencies:
       runtime:
         - xmessage
+    test:
+      pipeline:
+        - uses: test/pkgconf
+        - uses: test/tw/ldd-check
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 14961
+  git:
+    tag-filter-prefix: xmessage-
+    strip-prefix: xmessage-
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/tw/ver-check
       with:
         bins: xmessage
@@ -68,3 +76,10 @@ test:
       with:
         bins: xmessage
     - uses: test/no-docs
+    - name: functional test
+      runs: |
+        # xmessage requires an X display; verify it exits non-zero when no display is available
+        if xmessage -display :99 "test"; then
+          echo "ERROR: xmessage should have failed without a display"
+          exit 1
+        fi

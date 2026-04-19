@@ -1,12 +1,15 @@
 package:
   name: py3-executing
   version: 2.1.0
-  epoch: 4
+  epoch: 6 # go/wolfi-rsc/py3-executing
   description: Get the currently executing AST node of a frame, and other information
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 vars:
   pypi-package: executing
@@ -48,6 +51,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

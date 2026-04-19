@@ -1,6 +1,6 @@
 package:
   name: ruby3.4-protocol-http2
-  version: "0.23.0"
+  version: "0.26.0"
   epoch: 0
   description: A low level implementation of the HTTP/2 protocol.
   copyright:
@@ -27,7 +27,7 @@ vars:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 9f38daa9169561ab0b5c0083e284c5f7bc417a3f
+      expected-commit: b33b6a4952f5b8975f3a4176ff44123004ac6e87
       repository: https://github.com/socketry/protocol-http2
       tag: v${{package.version}}
 
@@ -62,9 +62,9 @@ test:
         - ruby${{vars.rubyMM}}-protocol-hpack
         - ruby${{vars.rubyMM}}-protocol-http
   pipeline:
-    - name: Basic require test
-      runs: |
-        ruby -e "require 'protocol/http2'; puts 'HTTP/2 protocol library loaded successfully!'"
+    - uses: test/tw/gem-check
+      with:
+        require: protocol/http2
     - name: Test frame handling
       runs: |
         ruby <<-EOF

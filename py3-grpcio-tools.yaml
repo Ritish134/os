@@ -1,12 +1,15 @@
 package:
   name: py3-grpcio-tools
-  version: "1.76.0" # On update, please check if -fdelete-null-pointer-checks is still required
-  epoch: 0
+  version: "1.80.0" # On update, please check if -fdelete-null-pointer-checks is still required
+  epoch: 1 # go/wolfi-rsc/py3-grpcio-tools
   description: Protobuf code generator for gRPC
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 22Gi
 
 vars:
   pypi-package: grpcio-tools
@@ -43,7 +46,7 @@ pipeline:
     with:
       repository: https://github.com/grpc/grpc
       tag: v${{package.version}}
-      expected-commit: f5ffb68d8a2fd603dff16287e90a4ac571e1fec6
+      expected-commit: f5e2d6e856176c2f6b7691032adfefe21e5f64c1
 
   - runs: |
       git submodule update --init

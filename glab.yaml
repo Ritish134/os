@@ -4,30 +4,38 @@
 #nolint:git-checkout-must-use-github-updates
 package:
   name: glab
-  version: "1.80.4"
-  epoch: 0 # CVE-2025-61729
+  version: "1.92.1"
+  epoch: 0
   description: A GitLab CLI tool bringing GitLab to your command line
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - git
+  resources:
+    cpu: "2"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://gitlab.com/gitlab-org/cli
       tag: v${{package.version}}
-      expected-commit: f4b518e9120bb54002d9cda816d3011de757feea
+      expected-commit: fcecef5594725be203a4357d6751691988f76049
 
   - uses: go/build
     with:
+      go-package: go-1.26
       packages: ./cmd/glab
       output: glab
       ldflags: -X main.version=v${{package.version}}

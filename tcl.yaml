@@ -1,7 +1,7 @@
 package:
   name: tcl
   version: "9.0.3"
-  epoch: 0
+  epoch: 2
   description: The Tcl scripting language
   copyright:
     - license: TCL
@@ -59,7 +59,8 @@ pipeline:
       # tclsh requires a number of files to be in place, copied over from the
       # libraries directory. Otherwise core functionality will not work.
       mkdir -p ${{targets.destdir}}/usr/library
-      cp -r ../library/*.tcl ${{targets.destdir}}/usr/library
+      cp -r ../library/* ${{targets.destdir}}/usr/library
+      rm ${{targets.destdir}}/usr/library/license.terms
 
   - uses: strip
 
@@ -82,6 +83,7 @@ subpackages:
     description: tcl dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
 
 update:
@@ -103,8 +105,5 @@ test:
         fi
     - name: "Check tclsh can execute a basic command"
       runs: |
-        if ! tclsh -c 'puts "Hello, Tcl!"; exit 0'; then
-            echo "Error: tclsh failed to execute a basic command"
-            exit 1
-        fi
+        echo 'puts "Hello, Tcl!"; exit 0' | tclsh | grep -F "Hello, Tcl!"
     - uses: test/tw/ldd-check

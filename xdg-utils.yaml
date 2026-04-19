@@ -2,7 +2,7 @@
 package:
   name: xdg-utils
   version: 1.2.1
-  epoch: 5
+  epoch: 8
   description: Basic desktop integration functions
   copyright:
     - license: MIT
@@ -26,10 +26,11 @@ environment:
       - xset
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: f6b648c064464c2636884c05746e80428110a576f8daacf46ef2e554dcfdae75
-      uri: https://gitlab.freedesktop.org/xdg/xdg-utils/-/archive/v${{package.version}}/xdg-utils-v${{package.version}}.tar.gz
+      repository: https://gitlab.freedesktop.org/xdg/xdg-utils
+      tag: v${{package.version}}
+      expected-commit: 356c380ad6fecc9ce6bea1f6a77986ba67402c80
 
   - runs: autoreconf
 
@@ -56,10 +57,59 @@ update:
     identifier: 5176
 
 test:
+  environment:
+    contents:
+      packages:
+        - file
+        - shared-mime-info
   pipeline:
     - uses: test/tw/ver-check
       with:
-        bins: xdg-email xdg-open xdg-screensaver xdg-desktop-icon xdg-settings xdg-mime xdg-icon-resource xdg-desktop-menu
+        bins: |
+          xdg-email
+          xdg-open
+          xdg-screensaver
+          xdg-desktop-icon
+          xdg-settings
+          xdg-mime
+          xdg-icon-resource
+          xdg-desktop-menu
     - uses: test/tw/help-check
       with:
-        bins: xdg-desktop-icon xdg-desktop-menu xdg-email xdg-icon-resource xdg-mime xdg-open xdg-screensaver xdg-settings
+        bins: |
+          xdg-desktop-icon
+          xdg-desktop-menu
+          xdg-email
+          xdg-icon-resource
+          xdg-mime
+          xdg-open
+          xdg-screensaver
+          xdg-settings
+    - name: Test xdg-mime filetype detection
+      runs: |
+        set -euo pipefail
+
+        # Create a plain text file
+        echo "hello world" > /tmp/test.txt
+
+        # Query the MIME type of the file
+        result=$(xdg-mime query filetype /tmp/test.txt)
+        echo "Detected MIME type: $result"
+        echo "$result" | grep -F "text/plain"
+
+        # Create a simple HTML file and verify detection
+        tee /tmp/test.html <<'EOF'
+        <html><body>Hello</body></html>
+        EOF
+
+        result=$(xdg-mime query filetype /tmp/test.html)
+        echo "Detected MIME type: $result"
+        echo "$result" | grep -F "text/html"
+    - name: Test xdg-settings list properties
+      runs: |
+        set -euo pipefail
+
+        # Verify xdg-settings can list known properties
+        output=$(xdg-settings --list 2>&1)
+        echo "$output"
+        echo "$output" | grep -F "default-web-browser"

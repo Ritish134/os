@@ -1,22 +1,24 @@
 package:
   name: py3-fromager
-  version: "0.75.0"
-  epoch: 0
+  version: "0.80.0"
+  epoch: 0 # go/wolfi-rsc/py3-fromager
   description: Wheel maker
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: "0"
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 vars:
   module_name: fromager
   pypi-package: fromager
 
-# py3.11 or greater
+# py3.12 or greater (v0.79.0 requires Python >= 3.12)
 data:
   - name: py-versions
     items:
-      "3.11": "311"
       "3.12": "312"
       "3.13": "313"
 
@@ -38,7 +40,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/python-wheel-build/fromager
-      expected-commit: 9bfe61f3710ae891db8bbacc41b1d1c0a3288f69
+      expected-commit: 3f28a31f482ca9c0d8817424d04e36f9bd560d7b
       tag: ${{package.version}}
 
 subpackages:

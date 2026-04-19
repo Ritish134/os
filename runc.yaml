@@ -1,10 +1,13 @@
 package:
   name: runc
-  version: "1.4.0"
-  epoch: 1 # CVE-2025-61729
+  version: "1.4.2"
+  epoch: 1 # CVE-2026-32280
   description: CLI tool for spawning and running containers according to the OCI specification
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 2Gi
 
 environment:
   contents:
@@ -25,7 +28,12 @@ pipeline:
     with:
       repository: https://github.com/opencontainers/runc
       tag: v${{package.version}}
-      expected-commit: 8bd78a9977e604c4d5f67a7415d7b8b8c109cdc4
+      expected-commit: c241c0bb5e60a8e8c1b2e53d4eca8d0068d8d57e
+
+  - uses: go/bump
+    with:
+      deps: |-
+        golang.org/x/net@v0.45.0
 
   - runs: |
       make COMMIT=$(git rev-parse HEAD)
@@ -52,15 +60,18 @@ update:
 
 test:
   pipeline:
-    - name: "Check runc version"
-      runs: |
-        runc --version
-    - name: "Check runc help"
-      runs: |
-        runc --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: runc
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: runc
     - name: "Test runc features"
       runs: |
-        runc features | grep -q "seccomp"
+        set -euo pipefail
+        runc features | grep -F "seccomp"
     - name: "Verify runc binary"
       runs: |
         [ -x "$(command -v runc)" ]

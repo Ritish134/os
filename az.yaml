@@ -1,46 +1,78 @@
 package:
   name: az
-  version: "2.81.0"
+  version: "2.85.0"
   epoch: 1
   description: Azure CLI
   copyright:
     - license: MIT
   dependencies:
     runtime:
-      - py3-cryptography
+      - py${{vars.python-version}}-cryptography
+      # sca does not find symlink farm ultimately back to python3.13
+      - python-${{vars.python-version}}-base
+  resources:
+    cpu: "2"
+    memory: 10Gi
+  test-resources:
+    cpu: "2"
+    memory: 4Gi
+
+vars:
+  python-version: "3.13"
+  venv-path: /opt/chainguard/az
 
 environment:
   contents:
     packages:
-      - build-base
       - busybox
-      - ca-certificates-bundle
-      - py3-cryptography
-      - py3-pip
-      - python-3
-      - python-3-dev
+      - py${{vars.python-version}}-cryptography
+      - python-${{vars.python-version}}-dev
+      - uv
 
 pipeline:
+  # git-checkout retained for SBOM source provenance metadata until
+  # Libraries SBOM integration lands in melange (internal-dev#20709, #21315)
   - uses: git-checkout
     with:
       repository: https://github.com/Azure/azure-cli/
       tag: azure-cli-${{package.version}}
-      expected-commit: e1fdb81cc99a69670fe3f9771f9af171ac0741af
+      expected-commit: 692b407c3706709250e67ff13522e290f884a626
 
-  - name: Python Build
-    runs: |
-      pip install wheel
-      cd src/azure-cli
-      python setup.py bdist_wheel
-      cd ../azure-cli-core
-      python setup.py bdist_wheel
+  - uses: auth/uv
+    with:
+      allow-fallback-indexes: true
 
   - runs: |
-      # Install the built wheels directly into the package filesystem
-      pip install --prefix=${{targets.destdir}}/usr --no-compile src/azure-cli/dist/*.whl src/azure-cli-core/dist/*.whl
+      uv venv "${{vars.venv-path}}" --python python${{vars.python-version}} --system-site-packages
 
-      # Remediate GHSA-2xpw-w6gg-jr37, GHSA-gm62-xv2j-4w53
-      pip install --prefix=${{targets.destdir}}/usr --upgrade "urllib3==2.6.0"
+      # Exclude cryptography from pip install to avoid bundling OpenSSL
+      echo "cryptography" > /tmp/exclude-pkgs.txt
+
+      # Install azure-cli from the index (Chainguard Libraries) instead of
+      # building from source, so the package is verified and tracked.
+      # --prerelease=allow needed because azure-cli depends on pre-release
+      # packages (e.g. azure-batch==15.0.0b1, azure-mgmt-containerregistry==15.1.0b1)
+      uv pip install --python "${{vars.venv-path}}/bin/python" \
+        --excludes /tmp/exclude-pkgs.txt --no-compile --prerelease=allow \
+        "azure-cli==${{package.version}}"
+
+      # Verify the installed version matches (both CLI output and pip metadata)
+      "${{vars.venv-path}}/bin/az" version -o tsv | grep -F "${{package.version}}"
+      "${{vars.venv-path}}/bin/python" -c "
+      from importlib.metadata import version, packages_distributions
+      v = version('azure-cli')
+      assert v == '${{package.version}}', f'Expected azure-cli==${{package.version}}, got {v}'
+      print(f'azure-cli=={v} installed correctly')
+      "
+
+      # Move venv into package output (cp -a to include hidden files like .lock)
+      mkdir -p "${{targets.destdir}}/opt/chainguard"
+      cp -a "${{vars.venv-path}}" "${{targets.destdir}}/opt/chainguard/"
+      chmod 644 "${{targets.destdir}}${{vars.venv-path}}/.lock"
+
+      # Symlink az command to PATH
+      mkdir -p "${{targets.destdir}}/usr/bin"
+      ln -sf "${{vars.venv-path}}/bin/az" "${{targets.destdir}}/usr/bin/az"
 
   - uses: strip
 
@@ -52,16 +84,49 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/pip-check
+      with:
+        python: /opt/chainguard/az/bin/python
+    - uses: test/tw/help-check
+      with:
+        bins: az
+    - name: Verify azure-cli version and provenance
+      runs: |
+        set -euo pipefail
+
+        # Verify pip metadata version matches package version
+        INSTALLED=$("${{vars.venv-path}}/bin/python" -c "from importlib.metadata import version; print(version('azure-cli'))")
+        if [ "$INSTALLED" != "${{package.version}}" ]; then
+          echo "FAIL: Expected azure-cli==${{package.version}}, got $INSTALLED"
+          exit 1
+        fi
+        echo "PASS: azure-cli==$INSTALLED"
+
+        # Verify az CLI reports same version
+        az version -o json | grep -F "${{package.version}}"
+
+        # Check if the package has a Chainguard Libraries SBOM (provenance indicator)
+        DIST_DIR="$("${{vars.venv-path}}/bin/python" -c "
+        from importlib.metadata import distribution
+        print(distribution('azure-cli')._path)
+        ")"
+        SBOM="${DIST_DIR}/sboms/sbom.spdx.json"
+        if [ ! -f "$SBOM" ]; then
+          echo "FAIL: No SBOM found — azure-cli must come from Chainguard Libraries"
+          exit 1
+        fi
+        if grep -qF '"Organization: Chainguard, Inc"' "$SBOM"; then
+          echo "PASS: Chainguard Libraries provenance confirmed via SBOM"
+        else
+          echo "FAIL: SBOM exists but not from Chainguard Libraries"
+          exit 1
+        fi
     - name: Validate Core CLI Commands
       runs: |
         # Check az version in multiple formats
         az version -o json
         az version -o table
         az version -o yaml
-
-        # Check top-level help commands
-        az -h
-        az --help
 
         # Verify that core command groups exist
         for cmd in account group network storage; do
@@ -125,7 +190,7 @@ subpackages:
         - bash
         - busybox
         - merged-usrsbin
-        - python-3
+        - python-${{vars.python-version}}
         - wolfi-baselayout
     pipeline:
       - uses: iamguarded/build-compat

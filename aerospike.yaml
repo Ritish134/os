@@ -1,10 +1,13 @@
 package:
   name: aerospike
   version: "6.4.0.33"
-  epoch: 1
+  epoch: 3
   description: Aerospike Database Server - flash-optimized, in-memory, nosql database
   copyright:
     - license: AGPL-3.0-only
+  resources:
+    cpu: "7"
+    memory: 10Gi
 
 environment:
   contents:
@@ -19,7 +22,7 @@ environment:
       - coreutils
       - gmp-dev
       - libtool
-      - openssl-dev
+      - openssl-hardened-dev
       - zlib-dev
 
 pipeline:

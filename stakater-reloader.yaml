@@ -1,30 +1,23 @@
 package:
   name: stakater-reloader
-  version: "1.4.12"
-  epoch: 0 # CVE-2025-61729
+  version: "1.4.16"
+  epoch: 0 # CVE-2026-32280
   description: A Kubernetes controller to watch changes in ConfigMap and Secrets and do rolling upgrades on Pods
   copyright:
     - license: Apache-2.0
-
-environment:
-  contents:
-    packages:
-      - build-base
-      - busybox
-      - ca-certificates-bundle
-      - go
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/stakater/Reloader
       tag: v${{package.version}}
-      expected-commit: 264b90df9d40a474308be258f4185996347de915
+      expected-commit: 57c69abae449b3dce9aa15212a2234453f180077
 
   - uses: go/build
     with:
       packages: .
       output: manager
+      go-package: go-1.26
 
 subpackages:
   - name: stakater-reloader-compat
@@ -34,6 +27,16 @@ subpackages:
           # Symlink the binary from usr/bin to /
           mkdir -p ${{targets.subpkgdir}}
           ln -sf /usr/bin/manager ${{targets.subpkgdir}}/manager
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
 update:
   enabled: true
@@ -47,6 +50,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - name: help output from manager binary
       runs: /usr/bin/manager --help

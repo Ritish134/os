@@ -1,19 +1,26 @@
 package:
   name: gdk-pixbuf
-  version: "2.44.4"
-  epoch: 0
+  version: "2.44.6"
+  epoch: 1 # go/wolfi-rsc/gdk-pixbuf
   description: GTK+ image loading library
   copyright:
     - license: LGPL-2.1-or-later
   dependencies:
     runtime:
       - shared-mime-info
+  resources:
+    cpu: "4"
+    memory: 6Gi
+  test-resources:
+    cpu: "2"
+    memory: 4Gi
+
+vars:
+  py-version: "3.13"
 
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
       - ca-certificates-bundle
@@ -26,23 +33,18 @@ environment:
       - libjpeg-turbo-dev
       - libpng-dev
       - meson
-      - py3-docutils
-      - py3-gi-docgen
+      - py${{vars.py-version}}-docutils-bin
+      - py${{vars.py-version}}-gi-docgen
       - shared-mime-info
       - smartypants
       - tiff-dev
 
-var-transforms:
-  - from: ${{package.version}}
-    match: '^(\d\.\d+).*'
-    replace: $1
-    to: major-minor-version
-
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 93a1aac3f1427ae73457397582a2c38d049638a801788ccbd5f48ca607bdbd17
-      uri: https://download.gnome.org/sources/gdk-pixbuf/${{vars.major-minor-version}}/gdk-pixbuf-${{package.version}}.tar.xz
+      repository: https://gitlab.gnome.org/GNOME/gdk-pixbuf
+      tag: ${{package.version}}
+      expected-commit: cbbcb7f1b6334b5ca6c644aca2f0a8a0067aec58
 
   - uses: meson/configure
     with:
@@ -72,6 +74,9 @@ subpackages:
     pipeline:
       - uses: split/locales
     description: gdk-pixbuf locales
+    test:
+      pipeline:
+        - uses: test/tw/langpackage
 
   - name: gdk-pixbuf-dev
     pipeline:

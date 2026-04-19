@@ -1,7 +1,7 @@
 package:
   name: flux-source-controller
-  version: "1.7.4"
-  epoch: 3 # GHSA-j5w8-q4qc-rx2x
+  version: "1.8.2"
+  epoch: 4 # GHSA-xm5m-wgh2-rrg3
   description: The GitOps Toolkit source management component
   copyright:
     - license: Apache-2.0
@@ -9,6 +9,12 @@ package:
     runtime:
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "142"
+    memory: 26Gi
+  test-resources:
+    cpu: "49"
+    memory: 16Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -23,20 +29,25 @@ environment:
       - ca-certificates-bundle
       - clang-16
       - gcc
-      - go
+      - go-1.26
       - lld-16
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 2eb5a81a22b414215f25d7981fd3ab7b078ad6ca
+      expected-commit: e1b0d6f3087a4c775a06ce5294e4c0d9010c0ac1
       repository: https://github.com/fluxcd/source-controller
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        helm.sh/helm/v4@v4.1.4
+        github.com/sigstore/timestamp-authority/v2@v2.0.6
 
   - runs: |
       mkdir -p "${{targets.destdir}}"/usr/bin

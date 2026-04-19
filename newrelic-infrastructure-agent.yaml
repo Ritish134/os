@@ -1,17 +1,20 @@
 package:
   name: newrelic-infrastructure-agent
-  version: "1.71.3"
-  epoch: 0
+  version: "1.73.1"
+  epoch: 0 # CVE-2026-32280
   description: New Relic Infrastructure Agent
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/newrelic/infrastructure-agent
       tag: ${{package.version}}
-      expected-commit: cea9e5dbb67783b2d1401aaf8dc1ee773809b30b
+      expected-commit: b4661314be94ffb3f5cb71ff88515617f3e1b8c2
 
   - uses: go/build
     with:
@@ -47,6 +50,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/tw/help-check
       with:
         bins: newrelic-infra newrelic-infra-ctl newrelic-infra-service
@@ -78,3 +82,8 @@ test:
           no license key
           please add it to agent
           config file or NRIA_LICENSE_KEY environment variable
+
+environment:
+  contents:
+    packages:
+      - go-1.25

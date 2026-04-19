@@ -1,7 +1,7 @@
 # Generated from https://pypi.org/project/bokeh/
 package:
   name: py3-bokeh
-  version: "3.8.2"
+  version: "3.9.0"
   epoch: 0
   description: Interactive plots and applications in the browser from Python
   copyright:
@@ -27,6 +27,8 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
+      - nodejs
+      - npm
       - py3-supported-cython
       - py3-supported-pip
       - py3-supported-python-dev
@@ -34,10 +36,14 @@ environment:
       - wolfi-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 8e7dcacc21d53905581b54328ad2705954f72f2997f99fc332c1de8da53aa3cc
-      uri: https://files.pythonhosted.org/packages/source/b/bokeh/bokeh-${{package.version}}.tar.gz
+      repository: https://github.com/bokeh/bokeh
+      tag: ${{package.version}}
+      expected-commit: daae4513ac6f9e504ee97e1731e5f422e56b0118
+
+  # bokeh's build process requires full tag history.
+  - runs: git fetch --tags
 
 subpackages:
   - range: py-versions
@@ -46,8 +52,9 @@ subpackages:
     dependencies:
       provider-priority: ${{range.value}}
       runtime:
-        - py${{range.key}}-jinja2
         - py${{range.key}}-contourpy
+        - py${{range.key}}-jinja2
+        - py${{range.key}}-narwhals
         - py${{range.key}}-numpy-2.2
         - py${{range.key}}-packaging
         - py${{range.key}}-pandas
@@ -66,6 +73,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -120,8 +128,9 @@ subpackages:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 78655
+  github:
+    identifier: bokeh/bokeh
+    use-tag: true
 
 test:
   pipeline:

@@ -1,10 +1,13 @@
 package:
   name: x265
   version: "4.1"
-  epoch: 5
+  epoch: 8 # add exit 1 on encoding failure in test
   description: H.265/HEVC encoder
   copyright:
     - license: GPL-2.0-only
+  resources:
+    cpu: "7"
+    memory: 8Gi
 
 environment:
   contents:
@@ -86,6 +89,7 @@ subpackages:
     description: x265 development files
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -125,6 +129,7 @@ test:
             echo "Encoding successful! Output file: $OUTPUT_HEVC"
         else
             echo "Encoding failed!"
+            exit 1
         fi
 
         # Clean up

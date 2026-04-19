@@ -1,7 +1,7 @@
 package:
   name: helm-4
-  version: "4.0.4"
-  epoch: 0 # CVE-2025-61729
+  version: "4.1.4"
+  epoch: 1 # CVE-2026-32280
   description: The Kubernetes Package Manager
   copyright:
     - license: Apache-2.0
@@ -10,34 +10,39 @@ package:
       - helm=${{package.full-version}}
     runtime:
       - ca-certificates-bundle
-
-environment:
-  contents:
-    packages:
-      - build-base
-      - busybox
-      - ca-certificates-bundle
-      - git
-      - go
+  resources:
+    cpu: "2"
+    memory: 3Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/helm/helm
       tag: v${{package.version}}
-      expected-commit: 8650e1dad9e6ae38b41f60b712af9218a0d8cc11
+      expected-commit: 05fa37973dc9e42b76e1d2883494c87174b6074f
 
-  - runs: |
-      make build
-      install -Dm755 ./bin/helm "${{targets.contextdir}}/usr/bin/helm"
-
-  - uses: strip
+  - uses: go/build
+    with:
+      packages: ./cmd/helm
+      output: helm
+      ldflags: |
+        -X helm.sh/helm/v4/internal/version.version=v${{package.version}}
+        -X helm.sh/helm/v4/internal/version.metadata=""
+        -X helm.sh/helm/v4/internal/version.gitCommit=$(git rev-parse HEAD)
+        -X helm.sh/helm/v4/internal/version.gitTreeState=$(test -n "`git status --porcelain`" && echo "dirty" || echo "clean")
 
 test:
   pipeline:
-    - runs: |
-        helm version || exit 1
-        helm --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: helm
+        version: ^v${{package.version}}\+\S+
+        version-flag: 'version --short'
+        match-type: regex
+    - uses: test/tw/help-check
+      with:
+        bins: helm
     - runs: |
         helm create test
 

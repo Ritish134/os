@@ -1,7 +1,7 @@
 package:
   name: gatus
-  version: "5.34.0"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "5.35.0"
+  epoch: 8 # CVE-2026-32280
   description: Automated developer-oriented status page
   copyright:
     - license: Apache-2.0
@@ -9,14 +9,22 @@ package:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 1c532971cbac4bc243c6a82fd641ab58b1199993
+      expected-commit: c4900ced6c44f3e8a3473eb0237c7b81b2195b72
       repository: https://github.com/TwiN/gatus.git
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/gofiber/fiber/v2@v2.52.12
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - uses: go/build
     with:
       packages: .
       output: gatus
+      go-package: go-1.25
 
   - runs: |
       mkdir -p ${{targets.contextdir}}/config
@@ -31,10 +39,10 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}
-          ln -sf /usr/bin/gatus ${{targets.contextdir}}/gatus
+          ln -sf usr/bin/gatus ${{targets.contextdir}}/gatus
     test:
       pipeline:
-        - runs: '[ "$(stat -c ''%N'' /gatus 2>/dev/null)" = "''/gatus'' -> ''/usr/bin/gatus''" ]'
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -45,7 +53,13 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/daemon-check-output
       with:
-        start: GATUS_CONFIG_PATH=./config.yaml gatus > /dev/null 2>&1 &
+        start: env GATUS_CONFIG_PATH=/config/config.yaml gatus
         expected_output: "Listening on 0.0.0.0:8080"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

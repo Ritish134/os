@@ -1,10 +1,13 @@
 package:
   name: libksba
-  version: 1.6.7
-  epoch: 2
+  version: "1.6.8"
+  epoch: 1 # go/wolfi-rsc/libksba
   description: Libksba is a CMS and X.509 access library
   copyright:
     - license: GPL-2.0-or-later OR GPL-3.0-or-later
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 environment:
   contents:
@@ -23,7 +26,7 @@ pipeline:
     with:
       repository: git://git.gnupg.org/libksba.git
       tag: libksba-${{package.version}}
-      expected-commit: b14e68b97df754b2bb7a90bb904d143d8e896afb
+      expected-commit: 39aa8435819df6a97fc751f5e5e45178f033c2ef
 
   - runs: |
       ./autogen.sh
@@ -52,6 +55,7 @@ subpackages:
     description: libksba dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -70,5 +74,31 @@ update:
     identifier: 1649
 
 test:
+  environment:
+    contents:
+      packages:
+        - libksba-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and usage
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <ksba.h>
+        #include <stdio.h>
+        int main() {
+            const char *version = ksba_check_version(NULL);
+            if (!version) {
+                fprintf(stderr, "FAIL: ksba_check_version returned NULL\n");
+                return 1;
+            }
+            printf("libksba version: %s\n", version);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags ksba) test.c -o test $(pkg-config --libs ksba)
+        ./test

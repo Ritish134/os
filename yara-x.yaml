@@ -1,12 +1,13 @@
 package:
   name: yara-x
-  version: "1.10.0"
-  epoch: 1 # GHSA-9c48-w39g-hm26
+  version: "1.15.0"
+  epoch: 1
   description: "A rewrite of YARA in Rust."
   copyright:
     - license: BSD-3-Clause
   resources:
-    memory: 6Gi
+    cpu: 19
+    memory: 20Gi
 
 environment:
   contents:
@@ -14,29 +15,50 @@ environment:
       - build-base
       - ca-certificates-bundle
       - cargo-c
-      - openssl-dev
+      - openssl-hardened-dev
       - perl
-      - rust
+      - rust-1.94
       - wolfi-base
   environment:
-    RUSTFLAGS: "-C opt-level=3"
+    RUSTFLAGS: "-C opt-level=3 -C target-feature=+crt-static"
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/VirusTotal/yara-x
-      expected-commit: 04817dd2ec529b71af47722a473bbdb2db65b15d
+      expected-commit: 71e1b4e0d9ca5a050d98a8db5ef3788d5ff00e36
       tag: v${{package.version}}
 
   - uses: rust/cargobump
+    with:
+      packages: wasmtime@40.0.4
 
   - name: Build base yara tool
     uses: cargo/build
     with:
+      # Special profile that builds a release binary with link-time optimization.
+      # Compiling with this profile takes a while, but the resulting binary is
+      # smaller and better optimized.
+      #
+      # this uses lto = true which attempts to perform optimizations
+      # across all crates within the dependency graph.
+      # see: https://doc.rust-lang.org/cargo/reference/profiles.html#lto
+      # and https://github.com/VirusTotal/yara-x/blob/3c92ac0c0173ec295f9975fc46b9be2bfe0b6028/Cargo.toml#L119-L127
+      opts: --profile release-lto
+      output-dir: target/release-lto
       output: yr
 
+  - uses: strip
+
   - runs: |
-      cargo cinstall -p yara-x-capi --features=native-code-serialization --release --prefix=${{targets.destdir}}/usr --pkgconfigdir=${{targets.destdir}}/usr/lib/pkgconfig --includedir=${{targets.destdir}}/usr/include --libdir=${{targets.destdir}}/usr/lib --manifest-path capi/Cargo.toml
+      cargo cinstall -p yara-x-capi --features=native-code-serialization --profile release-lto \
+        --prefix=${{targets.destdir}}/usr \
+        --pkgconfigdir=${{targets.destdir}}/usr/lib/pkgconfig \
+        --includedir=${{targets.destdir}}/usr/include \
+        --libdir="${{targets.destdir}}/usr/lib" \
+        --crt-static \
+        --library-type="staticlib" \
+        --manifest-path capi/Cargo.toml
 
       # this is required because the yara_x_capi.pc will end up with /home/build/melange-out/yara-x each of the paths
       # this causes an issue during install and when attempting to build using the library api.
@@ -55,25 +77,59 @@ test:
       packages:
         - git
         - glibc-dev
-        - go
+        - go-1.26
         - pkgconf-dev
   pipeline:
     - uses: test/tw/ldd-check
     - uses: test/pkgconf
-    - runs: |
-        cat <<EOF > test.c
+    - name: Test C API compile and run
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
         #include <yara_x.h>
         int main() {
             YRX_RULES* rules;
             yrx_compile("rule dummy { condition: true }", &rules);
             yrx_rules_destroy(rules);
+            return 0;
         }
         EOF
 
-        gcc test.c `pkg-config --cflags yara_x_capi` -o test `pkg-config --libs yara_x_capi`
+        gcc test.c $(pkg-config --cflags yara_x_capi) -o test $(pkg-config --libs yara_x_capi)
+        ./test
     - runs: |
         yr --help
         yr --version | grep ${{package.version}}
+    - name: Test yr scan functionality
+      runs: |
+        set -euo pipefail
+
+        # Create a YARA rule that matches a specific string
+        tee /tmp/test_rule.yar <<'EOF'
+        rule test_match {
+            strings:
+                $s = "this_is_malicious_content"
+            condition:
+                $s
+        }
+        EOF
+
+        # Create a target file containing the matching string
+        echo "this_is_malicious_content" > /tmp/target_file.txt
+
+        # Scan the target file with the rule and verify the match
+        yr scan /tmp/test_rule.yar /tmp/target_file.txt | grep -F "test_match"
+
+        # Create a file that should NOT match
+        echo "benign content here" > /tmp/clean_file.txt
+
+        # Scan the clean file - should produce no match
+        output=$(yr scan /tmp/test_rule.yar /tmp/clean_file.txt)
+        if echo "$output" | grep -F "test_match"; then
+          echo "FAIL: Rule should not match clean file"
+          exit 1
+        fi
     - runs: |
         git clone https://github.com/chainguard-dev/malcontent.git
         cd malcontent

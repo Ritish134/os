@@ -1,13 +1,16 @@
 package:
   name: node-gyp
-  version: "12.1.0"
-  epoch: 0
-  description: "the npm package manager for javascript, mainline"
+  version: "12.2.0"
+  epoch: 2
+  description: "NodeJS native addon build tool"
   copyright:
     - license: Artistic-2.0
   dependencies:
     runtime:
       - nodejs
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:

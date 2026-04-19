@@ -1,7 +1,7 @@
 package:
   name: bind
-  version: "9.20.17"
-  epoch: 0
+  version: "9.20.22"
+  epoch: 1
   description: The ISC DNS server
   copyright:
     - license: MPL-2.0
@@ -9,6 +9,9 @@ package:
     runtime:
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "3"
+    memory: 9Gi
 
 environment:
   contents:
@@ -30,7 +33,7 @@ environment:
       - libxml2-dev
       - nghttp2-dev
       - openldap-dev
-      - openssl-dev
+      - openssl-hardened-dev
       - perl
       - pkgconf-dev
       - protobuf-c-dev
@@ -43,7 +46,7 @@ pipeline:
     with:
       repository: https://gitlab.isc.org/isc-projects/bind9.git
       tag: v${{package.version}}
-      expected-commit: 00545e4375e80c72366c57e16f5d6acaaa365a77
+      expected-commit: e6099075cd523b9715839000a28d32dae6640956
 
   - runs: |
       # Adjusting PATHs in manpages

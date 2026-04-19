@@ -1,7 +1,7 @@
 package:
   name: ksops
-  version: "4.4.0"
-  epoch: 3 # CVE-2025-61729
+  version: "4.5.1"
+  epoch: 1 # CVE-2026-27141
   description: Flexible Kustomize Plugin for SOPS Encrypted Resources
   copyright:
     - license: Apache-2.0
@@ -14,26 +14,25 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/viaduct-ai/kustomize-sops.git
       tag: v${{package.version}}
-      expected-commit: ec19be6ab12e9ab64b557b4ce57e7b4df3a0f354
+      expected-commit: d9442dc3153d9c16e517a68ce8926c9507386429
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        golang.org/x/net@v0.51.0
 
   - uses: go/build
     with:
       packages: ksops.go
       output: ksops
-
-  - uses: strip
+      go-package: go-1.25
 
 subpackages:
   - name: ${{package.name}}-compat
@@ -41,16 +40,17 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.contextdir}}"/usr/local/bin
-          ln -sf /usr/bin/ksops "${{targets.contextdir}}"/usr/local/bin/ksops
-          ln -sf /usr/bin/ksops "${{targets.contextdir}}"/usr/local/bin/kustomize-sops
-          ln -sf /usr/bin/kustomize "${{targets.contextdir}}"/usr/local/bin/kustomize
+          ln -sf ../../bin/ksops "${{targets.contextdir}}"/usr/local/bin/ksops
+          ln -sf ../../bin/ksops "${{targets.contextdir}}"/usr/local/bin/kustomize-sops
+          ln -sf ../../bin/kustomize "${{targets.contextdir}}"/usr/local/bin/kustomize
     test:
+      environment:
+        contents:
+          packages:
+            - ksops
+            - kustomize
       pipeline:
-        - name: Check symlink
-          runs: |
-            stat /usr/local/bin/ksops
-            stat /usr/local/bin/kustomize-sops
-            stat /usr/local/bin/kustomize
+        - uses: test/tw/symlink-check
 
 test:
   environment:
@@ -60,12 +60,14 @@ test:
         - age
         - yq
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Verify binary presence and permissions
       runs: |
         test -f /usr/bin/ksops
         test -x /usr/bin/ksops
     - name: Basic plugin test
       runs: |
+        set -euo pipefail
         # Setup test directory
         mkdir -p ~/.config/kustomize/plugin/viaduct.ai/v1/ksops/
         cp /usr/bin/ksops ~/.config/kustomize/plugin/viaduct.ai/v1/ksops/
@@ -89,7 +91,7 @@ test:
         EOF
 
         # Test if kustomize can find and recognize the plugin
-        kustomize build . | grep -q "test-config" || { echo "Failed to find test resource in output"; exit 1; }
+        kustomize build . | grep -F "test-config" || { echo "Failed to find test resource in output"; exit 1; }
     - name: Standalone decryption test
       runs: |
         # Generate an AGE key pair and store it in a file

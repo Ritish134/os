@@ -1,29 +1,40 @@
 package:
   name: code-server
-  version: "4.106.3"
-  epoch: 1
+  version: "4.112.0"
+  epoch: 2 # go/wolfi-rsc/code-server
   description:
   copyright:
     - license: Apache-2.0
   resources:
-    cpu: 65
-    memory: 128Gi
+    cpu: "4"
+    memory: 14Gi
+  options:
+    no-depends: true
   dependencies:
     runtime:
+      - glibc
       - glibc-locales
+      - ld-linux
+      # openssl binary is required when code-server is configured with cert: true
       - openssl
+      - so:libbrotlidec.so.1
+      - so:libbrotlienc.so.1
+      - so:libcares.so.2
+      - so:libcrypto.so.3
+      - so:libicui18n.so.78
+      - so:libicuuc.so.78
+      - so:libnghttp2.so.14
+      - so:libssl.so.3
+      - so:libstdc++.so.6
+      - so:libuv.so.1
 
 environment:
   contents:
     packages:
       - bash
       - build-base
-      - busybox
-      - ca-certificates-bundle
       - coreutils
       - findutils
-      - gcc
-      - git
       - git-lfs
       - glibc-dev
       - glibc-locales
@@ -34,19 +45,27 @@ environment:
       - libx11-dev
       - libxkbcommon-dev
       - libxkbfile-dev
-      - make
       - node-gyp
       - nodejs-22
-      - npm
+      - npm<11.12.0
       - python3
       - rsync
+  environment:
+    NODE_OPTIONS: "--max-old-space-size=16384"
+    # Reduce thread pool size to limit peak memory usage during build
+    UV_THREADPOOL_SIZE: "2"
+    # Disable minification to reduce memory pressure
+    MINIFY: ""
+    # code-server's own build process relies on scripts, override the default
+    # for this package build
+    npm_config_ignore_scripts:
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/coder/code-server
       tag: v${{package.version}}
-      expected-commit: f128a7ac113916c9c29cf8d1361ab4b7f3bd9e75
+      expected-commit: d7599ae360900ad55b503e3c840b417a1eae4798
       recurse-submodules: true
 
   - runs: |
@@ -59,12 +78,11 @@ pipeline:
   - uses: patch
     with:
       patches: |
-        node-memory.patch
         GHSA-pq67-2wwv-3xjx.patch
-        fix-CVE-2025-47279.patch
         GHSA-76c9-3jph-rj3q.patch
         GHSA-mh29-5h37-fv8m.patch
-        GHSA-6rw7-vpxm-498p.patch
+        node-memory.patch
+        force-disable-mangling.patch
 
   - runs: |
       mkdir -p "${{targets.contextdir}}"/usr/lib/code-server
@@ -74,6 +92,27 @@ pipeline:
 
       # Set npm overrides for security vulnerabilities
       npm pkg set "overrides.tar-fs=3.1.1" "overrides.node-addon-api=7.1.0" "overrides.body-parser=2.2.1"
+
+      npm pkg set "overrides.tar=7.5.8"
+      npm pkg set "dependencies.qs=6.14.2"
+      npm pkg set "overrides.minimatch=10.2.1"
+      npm pkg set "overrides.basic-ftp=5.2.0"
+      npm pkg set "overrides.picomatch=4.0.4"
+      npm pkg set "overrides.path-to-regexp=8.4.0"
+      npm pkg set "overrides.lodash-es=4.18.0"
+
+      (cd lib/vscode
+       npm pkg set "dependencies.undici=^7.24.0"
+       npm pkg set "overrides.picomatch=4.0.4"
+       npm pkg set "overrides.lodash-es=4.18.0"
+       # Ensure package-lock.json is regenerated for our changes
+       npm install --package-lock-only --ignore-scripts
+      )
+      (cd lib/vscode/remote
+       npm pkg set "dependencies.undici=^7.24.0"
+       npm pkg set "overrides.picomatch=4.0.4"
+       npm pkg set "overrides.lodash-es=4.18.0"
+      )
 
       # Install modules and build backend/frontend
       npm install
@@ -104,7 +143,6 @@ pipeline:
       jq --arg v ${{package.version}} '.version = $v' ./release-standalone/package.json > ./release-standalone/tmp.json \
       && mv ./release-standalone/tmp.json ./release-standalone/package.json
 
-
       # Copy the release into the conext directory and setup symlink
       cp -r ./release-standalone/* "${{targets.contextdir}}"/usr/lib/code-server
       mkdir -p "${{targets.contextdir}}"/usr/bin
@@ -112,6 +150,17 @@ pipeline:
 
       # Drop binaries that require musl as we don't ship this in Wolfi and it generates a broken so dependency
       rm -rf "${{targets.contextdir}}"/usr/lib/code-server/lib/vscode/node_modules/@parcel/watcher-*-musl
+
+      # Remove musl prebuilds for Linux platforms
+      rm -r "${{targets.contextdir}}"/usr/lib/code-server/node_modules/argon2/prebuilds/linux-*/argon2.*musl.node
+
+      # Remove prebuilds for unsupported platforms
+      rm -r "${{targets.contextdir}}"/usr/lib/code-server/node_modules/argon2/prebuilds/freebsd-*
+      rm -r "${{targets.contextdir}}"/usr/lib/code-server/node_modules/argon2/prebuilds/darwin-*
+      rm -r "${{targets.contextdir}}"/usr/lib/code-server/node_modules/argon2/prebuilds/win32-*
+
+      # Remove Microsoft authentication extension as it requires webgtk.so
+      rm -r "${{targets.contextdir}}"/usr/lib/code-server/lib/vscode/extensions/microsoft-authentication
 
 subpackages:
   - name: "${{package.name}}-compat"
@@ -145,6 +194,11 @@ subpackages:
           mkdir -p "${{targets.contextdir}}"/etc/fixuid
           echo "coder ALL=(ALL) NOPASSWD:ALL" >> "${{targets.contextdir}}"/etc/sudoers.d/nopasswd
           printf "user: coder\ngroup: coder\n" > "${{targets.contextdir}}"/etc/fixuid/config.yml
+    test:
+      pipeline:
+        - runs: |
+            test -f /usr/bin/entrypoint.sh
+            test -f /etc/sudoers.d/nopasswd
 
 update:
   enabled: true

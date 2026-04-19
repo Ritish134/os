@@ -1,10 +1,13 @@
 package:
   name: gst-plugins-base
-  version: "1.27.90"
-  epoch: 0
+  version: "1.29.1"
+  epoch: 0 # go/wolfi-rsc/gst-plugins-base
   description: GStreamer streaming media framework base plug-ins
   copyright:
     - license: LGPL-2.1
+  resources:
+    cpu: "2"
+    memory: 10Gi
 
 environment:
   contents:
@@ -24,6 +27,7 @@ environment:
       - gstreamer
       - gstreamer-dev
       - gtk-3-dev
+      - libatomic
       - libdrm-dev
       - libice-dev
       - libogg-dev
@@ -48,7 +52,7 @@ pipeline:
     with:
       repository: https://github.com/GStreamer/gstreamer
       tag: ${{package.version}}
-      expected-commit: a5e6480385179a917d3cb8590ceba29321111381
+      expected-commit: 021f5980a8dbabb8b7b736bf89eda213e84248e4
 
   - working-directory: subprojects/gst-plugins-base
     pipeline:
@@ -80,11 +84,11 @@ subpackages:
 
   - name: ${{package.name}}-doc
     pipeline:
-      - uses: split/manpages
-    description: ${{package.name}} manpages
+      - uses: split/alldocs
+    description: ${{package.name}} documentation
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
   - name: ${{package.name}}-lang
     pipeline:
@@ -92,11 +96,15 @@ subpackages:
           mkdir -p ${{targets.subpkgdir}}/usr/share/locale
           mv ${{targets.destdir}}/usr/share/locale ${{targets.subpkgdir}}/usr/share/locale
     description: ${{package.name}} lang
+    test:
+      pipeline:
+        - uses: test/tw/langpackage
 
 update:
   enabled: true
-  git:
-    tag-filter-prefix: "1."
+  github:
+    identifier: GStreamer/gstreamer
+    use-tag: true
 
 test:
   pipeline:

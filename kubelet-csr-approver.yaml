@@ -1,25 +1,27 @@
 package:
   name: kubelet-csr-approver
-  version: "1.2.12"
-  epoch: 1 # CVE-2025-61729
+  version: "1.2.13"
+  epoch: 4 # go/wolfi-rsc/kubelet-csr-approver
   description: Kubernetes controller to enable automatic kubelet CSR validation after a series of (configurable) security checks
   copyright:
     - license: MIT
-  checks:
-    disabled:
-      # Disabled until merged-varrun is done.
-      - tempdir
+  dependencies:
+    runtime:
+      # This provides the expected /var/run/ko using a symlink.
+      - kodata-compat
+  resources:
+    cpu: "2"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/postfinance/kubelet-csr-approver
       tag: v${{package.version}}
-      expected-commit: 6b9467a46c725861b5d8a787941f7eb2316e2608
-
-  - name: make ko dir
-    runs: |
-      mkdir -p ${{targets.contextdir}}/var/run/ko
+      expected-commit: 23160d0276d6e501232638ee59fd0fcf1cfe73a5
 
   - uses: go/build
     with:
@@ -78,3 +80,8 @@ test:
           Starting workers
         post: |
           curl -sfSL http://localhost:8080/metrics
+
+environment:
+  contents:
+    packages:
+      - go-1.25

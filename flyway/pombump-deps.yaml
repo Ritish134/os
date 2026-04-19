@@ -1,13 +1,10 @@
 patches:
-  - groupId: net.snowflake.client.jdbc.SnowflakeDriver
-    artifactId: snowflake-jdbc
-    version: 3.23.1
   - groupId: io.projectreactor.netty
     artifactId: reactor-netty-http
     version: 1.2.8
-  - groupId: io.netty
-    artifactId: netty-codec
-    version: 4.1.125.Final
+  - groupId: tools.jackson.core
+    artifactId: jackson-core
+    version: 3.1.1
   - groupId: io.netty
     artifactId: netty-codec-http
-    version: 4.2.8.Final
+    version: 4.1.132.Final

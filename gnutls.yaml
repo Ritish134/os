@@ -1,13 +1,18 @@
 package:
   name: gnutls
-  version: "3.8.11"
-  epoch: 0
+  version: "3.8.12"
+  epoch: 3
   description: TLS protocol implementation
   copyright:
     - license: LGPL-2.1-or-later
   dependencies:
     runtime:
-      - nettle
+      # Pin to nettle 3.x until gnutls supports nettle 4.0
+      # See: http://www.mail-archive.com/gnutls-devel@lists.gnutls.org/msg03102.html
+      - nettle~3
+  resources:
+    cpu: "5"
+    memory: 14Gi
 
 # creates a new var that contains only the major and minor version to be used in the fetch URL
 # e.g. 2.46.0 will create a new var mangled-package-version=2.46
@@ -29,7 +34,8 @@ environment:
       - libtasn1-dev
       - libunistring-dev
       - linux-headers
-      - nettle-dev
+      # Pin to nettle 3.x until gnutls supports nettle 4.0
+      - nettle-dev~3
       - p11-kit-dev
       - texinfo
       - zlib-dev
@@ -37,7 +43,7 @@ environment:
 pipeline:
   - uses: fetch
     with:
-      expected-sha256: 91bd23c4a86ebc6152e81303d20cf6ceaeb97bc8f84266d0faec6e29f17baa20
+      expected-sha256: a7b341421bfd459acf7a374ca4af3b9e06608dcd7bd792b2bf470bea012b8e51
       uri: https://www.gnupg.org/ftp/gcrypt/gnutls/v${{vars.mangled-package-version}}/gnutls-${{package.version}}.tar.xz
 
   - runs: |
@@ -84,12 +90,14 @@ subpackages:
     dependencies:
       runtime:
         - gnutls
-        - nettle-dev
+        # Pin to nettle 3.x until gnutls supports nettle 4.0
+        - nettle-dev~3
         - p11-kit-dev
         - libtasn1-dev
     description: gnutls dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -101,6 +109,7 @@ subpackages:
     description: Command line tools for TLS protocol
     test:
       pipeline:
+        - uses: test/tw/ldd-check
         - runs: |
             certtool --version
             certtool --help
@@ -133,5 +142,42 @@ update:
     identifier: 1221
 
 test:
+  environment:
+    contents:
+      packages:
+        - gnutls-dev
+        - build-base
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test GnuTLS library compilation and linking
+      runs: |-
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <gnutls/gnutls.h>
+        #include <stdio.h>
+
+        int main() {
+            int ret = gnutls_global_init();
+            if (ret < 0) {
+                fprintf(stderr, "gnutls_global_init failed: %s\n", gnutls_strerror(ret));
+                return 1;
+            }
+
+            /* Verify we can query the library version */
+            const char *version = gnutls_check_version(NULL);
+            if (version == NULL) {
+                fprintf(stderr, "gnutls_check_version returned NULL\n");
+                gnutls_global_deinit();
+                return 1;
+            }
+            printf("GnuTLS version: %s\n", version);
+
+            gnutls_global_deinit();
+            printf("GnuTLS library test passed\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags gnutls) test.c -o test $(pkg-config --libs gnutls)
+        ./test

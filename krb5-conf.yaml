@@ -1,10 +1,13 @@
 package:
   name: krb5-conf
   version: "1.0"
-  epoch: 7
+  epoch: 9 # add update exclude-reason, use grep -F in tests
   description: Shared krb5.conf for both MIT krb5 and heimdal
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -18,11 +21,12 @@ pipeline:
 
 update:
   enabled: false
+  exclude-reason: "This package contains a static configuration file, no updates are needed."
 
 test:
   pipeline:
     - runs: |
-        grep "\[logging\]" /etc/krb5.conf
-        grep "\[libdefaults\]" /etc/krb5.conf
-        grep "\[realms\]" /etc/krb5.conf
-        grep "\[domain_realm\]" /etc/krb5.conf
+        grep -F "[logging]" /etc/krb5.conf
+        grep -F "[libdefaults]" /etc/krb5.conf
+        grep -F "[realms]" /etc/krb5.conf
+        grep -F "[domain_realm]" /etc/krb5.conf

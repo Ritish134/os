@@ -1,24 +1,70 @@
 package:
   name: cerbos
-  version: "0.50.0"
-  epoch: 0 # CVE-2025-47910
+  version: "0.51.0"
+  epoch: 17 # GHSA-hr2v-4r36-88hr
   description: Cerbos is the open core, language-agnostic, scalable authorization solution that makes user permissions and authorization simple to implement and manage by writing context-aware access control policies for your application resources.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "4"
+    memory: 8Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 3d67f665bcb354d60a5fd3103bbbcd5045baf749
+      expected-commit: 158d17bc1ebb98d0875eb4ea6cd5d7581614d093
       repository: https://github.com/cerbos/cerbos
       tag: v${{package.version}}
 
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: api/genpb
+      tidy: false
+
   - runs: |
-      # Temp Use sed command to update go.work file remove when upstream upgrade to 1.25
-      sed -i 's/go 1.24.2/go 1.25.0/' go.work
+      # Update go.work to match the installed Go version
+      goversion=$(go version | awk '{print $3}' | sed 's/go//')
+      sed -i "s/^go .*/go ${goversion}/" go.work
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        helm.sh/helm/v3@v3.20.2
+      modroot: tools
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        github.com/go-git/go-git/v5@v5.17.1
+      modroot: hack/tools/changelog
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        filippo.io/edwards25519@v1.1.1
+        github.com/cloudflare/circl@v1.6.3
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        helm.sh/helm/v3@v3.20.2
+      work: true
 
   - uses: go/build
     with:
+      go-package: go-1.25
       ldflags: |-
         -X github.com/cerbos/cerbos/internal/util.Version=${{package.version}}
         -X github.com/cerbos/cerbos/internal/util.Commit=$(git rev-parse HEAD)
@@ -32,6 +78,7 @@ subpackages:
     pipeline:
       - uses: go/build
         with:
+          go-package: go-1.25
           ldflags: |-
             -X github.com/cerbos/cerbos/internal/util.Version=${{package.version}}
             -X github.com/cerbos/cerbos/internal/util.Commit=$(git rev-parse HEAD)
@@ -56,20 +103,30 @@ subpackages:
           mkdir -p -m 0755 ${{targets.contextdir}}/tmp
           mkdir -p -m 0755 ${{targets.contextdir}}/.cache
           # The upstream helm chart assumes the binary is in /.
-          ln -sf /usr/bin/cerbos ${{targets.contextdir}}/cerbos
+          ln -sf ./usr/bin/cerbos ${{targets.contextdir}}/cerbos
     test:
+      environment:
+        contents:
+          packages:
+            - cerbos
       pipeline:
-        - runs: test "$(readlink /cerbos)" = "/usr/bin/cerbos"
+        - uses: test/tw/symlink-check
+        - runs: test "$(readlink /cerbos)" = "./usr/bin/cerbos"
 
   - name: cerbosctl-compat
     description: Cerbosctl compatibility package
     pipeline:
       - runs: |
           mkdir -p -m 0755 ${{targets.contextdir}}
-          ln -sf /usr/bin/cerbosctl ${{targets.contextdir}}/cerbosctl
+          ln -sf ./usr/bin/cerbosctl ${{targets.contextdir}}/cerbosctl
     test:
+      environment:
+        contents:
+          packages:
+            - cerbosctl
       pipeline:
-        - runs: test "$(readlink /cerbosctl)" = "/usr/bin/cerbosctl"
+        - uses: test/tw/symlink-check
+        - runs: test "$(readlink /cerbosctl)" = "./usr/bin/cerbosctl"
 
 update:
   enabled: true
@@ -94,6 +151,7 @@ test:
         - jq
         - cerbosctl=${{package.full-version}}
   pipeline:
+    - uses: test/tw/ldd-check
     - name: "start daemon on localhost"
       uses: test/daemon-check-output
       with:
@@ -104,15 +162,17 @@ test:
           Starting HTTP server at
           Starting admin service
         post: |-
+          wait-for-it -t 3 --strict localhost:3592 -- echo "Server is up"
           curl -sf http://localhost:3592/_cerbos/health | grep -i "SERVING"
 
-          # Check OpenAPI schema endpoint
-          curl -sf http://localhost:3592/schema/swagger.json | jq -e ".openapi != null"
+          # Check Swagger schema endpoint (Swagger 2.0 format)
+          curl -sf http://localhost:3592/schema/swagger.json | jq -e ".swagger != null"
 
           # Check main page returns 200
           curl -sf -o /dev/null -w "%{http_code}" http://localhost:3592 | grep "200"
     - name: "test authorization checks with curl"
       runs: |
+        set -euo pipefail
         # Start server with test policies
         mkdir -p /tmp/policies
 
@@ -242,6 +302,7 @@ test:
         kill $SERVER_PID
     - name: "test cerbosctl basic commands"
       runs: |
+        set -euo pipefail
         # Start a server for cerbosctl tests
         mkdir -p /tmp/ctl-policies
         cat > /tmp/ctl-policies/simple.yaml << 'EOF'
@@ -266,6 +327,11 @@ test:
         cerbosctl get schemas --plaintext || [ $? -eq 0 ]
 
         # Test cerbosctl get policies
-        cerbosctl get resource_policies --plaintext | grep "document"
+        cerbosctl get resource_policies --plaintext | grep -F "document"
 
         kill $SERVER_PID
+
+environment:
+  contents:
+    packages:
+      - go-1.25

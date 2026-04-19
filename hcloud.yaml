@@ -1,7 +1,7 @@
 package:
   name: hcloud
-  version: "1.59.0"
-  epoch: 0 # CVE-2025-61729
+  version: "1.62.2"
+  epoch: 0 # CVE-2026-32280
   description: A command-line interface for Hetzner Cloud
   copyright:
     - license: MIT
@@ -11,7 +11,7 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     CGO_ENABLED: "0"
 
@@ -20,14 +20,15 @@ pipeline:
     with:
       repository: https://github.com/hetznercloud/cli
       tag: v${{package.version}}
-      expected-commit: e01a16ea40bdf213362675eeb94d61776619be01
+      expected-commit: 4b2b4e089e3b6d09f68469bec3ead54b08991bf7
 
   - uses: go/build
     with:
       packages: ./cmd/hcloud/main.go
+      output: hcloud
+      go-package: go-1.25
       ldflags: |
         -X main.version=internal/version.version=${{package.version}}
-      output: hcloud
 
 update:
   enabled: true
@@ -37,6 +38,8 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         hcloud version
-        hcloud --help
+        hcloud completion bash | grep -F "hcloud"
+        hcloud context list

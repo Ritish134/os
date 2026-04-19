@@ -1,11 +1,14 @@
 # Generated from https://git.alpinelinux.org/aports/plain/community/erofs-utils/APKBUILD
 package:
   name: erofs-utils
-  version: "1.8.10"
-  epoch: 3
+  version: "1.9.1"
+  epoch: 1 # go/wolfi-rsc/erofs-utils
   description: userspace utilities for erofs filesystem
   copyright:
     - license: Apache-2.0 AND GPL-2.0-or-later
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 environment:
   contents:
@@ -13,6 +16,7 @@ environment:
       - autoconf
       - automake
       - build-base
+      - fuse3-dev
       - libtool
       - lz4-dev
       - pkgconf-dev
@@ -25,14 +29,16 @@ pipeline:
     with:
       repository: https://kernel.googlesource.com/pub/scm/linux/kernel/git/xiang/erofs-utils.git
       tag: v${{package.version}}
-      expected-commit: 51b5939b5f783221310d25146e6a2019ba8129b6
+      expected-commit: d3fbccba6e409c100843563b416c47cd82c87ca0
 
   - uses: autoconf/configure
     with:
       opts: |
+        --enable-fuse \
         --enable-multithreading \
         --with-libzstd \
-        --prefix=/usr
+        --prefix=/usr \
+        --sbindir=/usr/bin
 
   - uses: autoconf/make
 
@@ -49,11 +55,24 @@ subpackages:
       pipeline:
         - uses: test/docs
 
+  - name: erofs-utils-fuse
+    description: "FUSE driver for erofs filesystem"
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}/usr/bin"
+          mv "${{targets.destdir}}/usr/bin/erofsfuse" "${{targets.subpkgdir}}/usr/bin/erofsfuse"
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: erofsfuse
+            expect-contains: IMAGE
+
 test:
   pipeline:
     - runs: |
-        mkfs.erofs --help 2>&1 | grep "Generate EROFS image"
-        mkfs.erofs --version 2>&1 | grep "${{package.version}}"
+        mkfs.erofs --help 2>&1 | grep -F "EROFS"
+        mkfs.erofs --version
         dump.erofs --help
         dump.erofs --version
         fsck.erofs --help

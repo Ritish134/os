@@ -1,10 +1,13 @@
 package:
   name: verticadb-operator
   version: "25.4.0.0"
-  epoch: 2 # GHSA-cfpf-hrx2-8rv6
+  epoch: 11 # CVE-2026-27143
   description: Simple, fast container image builder for Go applications.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 9Gi
 
 environment:
   contents:
@@ -28,8 +31,14 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: local-libs/vcluster
+
+  - uses: go/bump
+    with:
+      deps: |-
         github.com/expr-lang/expr@v1.17.7
-      go-version: 1.24
+        google.golang.org/grpc@v1.79.3
 
   - name: Setup go modroot
     runs: |

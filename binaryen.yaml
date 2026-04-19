@@ -1,13 +1,16 @@
 package:
   name: binaryen
-  version: "125"
-  epoch: 0
+  version: "129"
+  epoch: 2 # go/wolfi-rsc/binaryen
   description: Optimizer and compiler/toolchain library for WebAssembly
   copyright:
     - license: Apache-2.0
   resources:
-    cpu: 10
-    memory: 10Gi
+    cpu: "18"
+    memory: 20Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -29,7 +32,7 @@ pipeline:
     with:
       repository: https://github.com/webassembly/binaryen
       tag: version_${{package.version}}
-      expected-commit: 6ec7b5f9c615d3b224c67ae221d6812c8f8e1a96
+      expected-commit: d0e2be9edd0052e487dde1d8d85d10f1338af584
 
   - uses: cmake/configure
     with:
@@ -58,7 +61,8 @@ subpackages:
     description: binaryen dev
     test:
       pipeline:
-        - runs: stat /usr/include/binaryen-c.h
+        - uses: test/tw/header-check
+        - uses: test/tw/devpackage
 
 update:
   enabled: true
@@ -68,7 +72,40 @@ update:
 
 test:
   pipeline:
-    - runs: |
+    - uses: test/tw/ver-check
+      with:
+        bins: |
+          wasm-as
+          wasm-ctor-eval
+          wasm-dis
+          wasm-emscripten-finalize
+          wasm-fuzz-lattices
+          wasm-fuzz-types
+          wasm-merge
+          wasm-metadce
+          wasm-opt
+          wasm-reduce
+          wasm-shell
+          wasm-split
+          wasm2js
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          wasm-as
+          wasm-ctor-eval
+          wasm-dis
+          wasm-emscripten-finalize
+          wasm-fuzz-lattices
+          wasm-fuzz-types
+          wasm-merge
+          wasm-metadce
+          wasm-opt
+          wasm-reduce
+          wasm-shell
+          wasm-split
+          wasm2js
+    - name: Test wasm2js conversion
+      runs: |
         cat > hello_world.wat <<'EOF'
         (module
         (type $i32_i32_=>_i32 (func (param i32 i32) (result i32)))
@@ -83,31 +120,5 @@ test:
         )
         EOF
         /usr/bin/wasm2js hello_world.wat -o hello_world.js
-        cat hello_world.js
-        wasm-as --version
-        wasm-as --help
-        wasm-ctor-eval --version
-        wasm-ctor-eval --help
-        wasm-dis --version
-        wasm-dis --help
-        wasm-emscripten-finalize --version
-        wasm-emscripten-finalize --help
-        wasm-fuzz-lattices --version
-        wasm-fuzz-lattices --help
-        wasm-fuzz-types --version
-        wasm-fuzz-types --help
-        wasm-merge --version
-        wasm-merge --help
-        wasm-metadce --version
-        wasm-metadce --help
-        wasm-opt --version
-        wasm-opt --help
-        wasm-reduce --version
-        wasm-reduce --help
-        wasm-shell --version
-        wasm-shell --help
-        wasm-split --version
-        wasm-split --help
-        wasm2js --version
-        wasm2js --help
+        grep -F "add" hello_world.js
     - uses: test/tw/ldd-check

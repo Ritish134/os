@@ -1,10 +1,13 @@
 package:
   name: strace
-  version: "6.18"
-  epoch: 0
+  version: "6.19"
+  epoch: 1 # go/wolfi-rsc/strace
   description: Diagnostic, debugging and instructional userspace tracer
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "3"
+    memory: 5Gi
 
 environment:
   contents:
@@ -30,7 +33,7 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 4ed1454cf539ee529ca5db8b1e7a779eb15efc88
+      expected-commit: 1d78a4ce1bfa3754b3b99b1e4bb15790001b77cb
       repository: https://github.com/strace/strace.git
       tag: v${{package.version}}
 
@@ -71,3 +74,25 @@ test:
         strace --version
         strace-log-merge --help
         strace --help
+    - name: Test strace tracing functionality
+      runs: |
+        set -euo pipefail
+
+        # Trace the write syscall of a simple echo command
+        # strace outputs trace data to stderr
+        strace -e trace=write echo hello 2>&1 | grep -F "write"
+    - name: Test strace-log-merge functionality
+      runs: |
+        set -euo pipefail
+
+        # Use strace to generate per-PID timestamped log files
+        # -ff writes each process to a separate file
+        # -t adds timestamps (required for strace-log-merge)
+        # -o specifies the output file prefix
+        strace -ff -t -e trace=write -o /tmp/strace-log echo hello
+
+        # Verify at least one log file was created
+        ls /tmp/strace-log.* >/dev/null
+
+        # Merge the log files and verify output contains traced syscalls
+        strace-log-merge /tmp/strace-log | grep -F "write"

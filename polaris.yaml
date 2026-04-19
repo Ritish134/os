@@ -1,15 +1,26 @@
 package:
   name: polaris
-  version: "10.1.3"
-  epoch: 0 # CVE-2025-61729
+  version: "10.1.7"
+  epoch: 2 # CVE-2026-32280
   description: Validation of best practices in your Kubernetes clusters
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 5Gi
+
+environment:
+  contents:
+    packages:
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: e2df222ded28ee3315ccedbfa4dbc9914de8c482
+      expected-commit: 47c7deddfd66a762729f0d3b94d72e55871a4970
       repository: https://github.com/FairwindsOps/polaris
       tag: ${{package.version}}
 
@@ -20,6 +31,7 @@ pipeline:
         -X main.Commit=$(git rev-parse HEAD)
       output: polaris
       packages: .
+      go-package: go-1.26
 
 update:
   enabled: true
@@ -33,8 +45,10 @@ test:
       packages:
         - jq
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - runs: |
+        set -euo pipefail
         polaris audit --format json > /tmp/polaris.json
         # there is an entry in json like this:
         # 2025/07/28 14:04:01 INFO   "Results": [
@@ -53,5 +67,5 @@ test:
         #       "Mutations": null
         #     },
         # ....
-        # use jq to check that the cluster-admin ClusterRoleBinding is not present
-        jq '.Results[]   | select(.Name == "extension-apiserver-authentication")   | .Results.sensitiveConfigmapContent.Success' /tmp/polaris.json | grep -q true
+        # use jq -e to check that sensitiveConfigmapContent.Success is true (jq -e exits non-zero if result is false/null)
+        jq -e '.Results[] | select(.Name == "extension-apiserver-authentication") | .Results.sensitiveConfigmapContent.Success' /tmp/polaris.json

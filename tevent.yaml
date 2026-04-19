@@ -1,10 +1,13 @@
 package:
   name: tevent
   version: "0.17.1"
-  epoch: 0
+  epoch: 3 # go/wolfi-rsc/tevent
   description: The tevent library
   copyright:
     - license: LGPL-3.0-or-later
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 vars:
   configure-common-opts: |
@@ -63,6 +66,7 @@ subpackages:
     description: tevent dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -109,7 +113,7 @@ subpackages:
         - py3.13-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: test/emptypackage
+        - uses: test/tw/metapackage
         - uses: python/import
           with:
             python: python3.10
@@ -126,6 +130,36 @@ subpackages:
           with:
             python: python3.13
             import: ${{vars.import}}
+
+test:
+  environment:
+    contents:
+      packages:
+        - tevent-dev
+        - talloc-dev
+        - build-base
+        - pkgconf
+  pipeline:
+    - uses: test/tw/ldd-check
+    - name: Test library compilation and linking
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <tevent.h>
+        int main() {
+            struct tevent_context *ev;
+            ev = tevent_context_init(NULL);
+            if (ev == NULL) {
+                return 1;
+            }
+            talloc_free(ev);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags tevent) test.c -o test $(pkg-config --libs tevent)
+        ./test
 
 update:
   enabled: true

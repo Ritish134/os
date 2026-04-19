@@ -1,13 +1,16 @@
 package:
   name: snmalloc
-  version: "0.7.3"
-  epoch: 0
+  version: "0.7.4"
+  epoch: 1
   description: "snmalloc is a high-performance, message passing based allocator."
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - glibc
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 vars:
   # Using clang and llvm 17 which is compatible according to upstream: https://github.com/microsoft/snmalloc/blob/main/docs/BUILDING.md/#building-on-unix-like-platforms
@@ -36,7 +39,7 @@ pipeline:
     with:
       repository: https://github.com/microsoft/snmalloc.git
       tag: ${{package.version}}
-      expected-commit: 92ca9184886f983bb1cf9f4614c9569db442d097
+      expected-commit: cd2b19b9f1c8db1df7d97a97ed6660cc16abd6de
 
   - uses: cmake/configure
     with:
@@ -60,15 +63,33 @@ pipeline:
   - uses: strip
 
 subpackages:
+  - name: snmalloc-libs
+    pipeline:
+      - uses: split/lib
+    description: snmalloc shared libraries
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
+
   - name: snmalloc-static
     pipeline:
       - uses: split/static
     description: snmalloc static library
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: snmalloc-dev
     pipeline:
       - uses: split/dev
     description: header files of snmallac
+    dependencies:
+      runtime:
+        - snmalloc-libs
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
+        - uses: test/pkgconf
 
 test:
   environment:

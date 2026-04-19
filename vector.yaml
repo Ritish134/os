@@ -1,12 +1,12 @@
 package:
   name: vector
-  version: "0.52.0"
-  epoch: 0
+  version: "0.54.0"
+  epoch: 3 # GHSA-vvp9-7p8x-rfvv
   description: End-to-end observability data pipeline
   copyright:
     - license: MPL-2.0
   resources:
-    cpu: 16
+    cpu: "32"
     memory: 24Gi
 
 environment:
@@ -14,6 +14,7 @@ environment:
     packages:
       - bash
       - build-base
+      - cargo-auditable
       - clang-21
       - cyrus-sasl-dev
       - gcc-14-default
@@ -32,7 +33,9 @@ pipeline:
     with:
       repository: https://github.com/vectordotdev/vector
       tag: v${{package.version}}
-      expected-commit: ca5bf2690ffcfc2c95d320cf7156b1df1b28a080
+      expected-commit: 2b8b875681fbf4ef8da827650f75e936f16a36a4
+
+  - uses: rust/cargobump
 
   - runs: |
       sed -i '7s/deny/allow/' src/lib.rs
@@ -40,6 +43,11 @@ pipeline:
       # Force building with system provided openssl instead of vendored version
       sed -i -E 's|^(openssl)\s*=.*version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+).*|openssl = { version = "\2", default-features = false }|' Cargo.toml
       sed -i -E 's|^(openssl-src)\s*=.*version\s*=\s*"([0-9]+).*|openssl-src = { version = "\2", optional = true, default-features = false, features = ["force-engine", "legacy"] }|' Cargo.toml
+      # krb5-src 0.3.2 vendored C code triggers -Werror=discarded-qualifiers with GCC 14+.
+      # Use a CC wrapper to append -Wno-discarded-qualifiers after krb5's Makefile flags.
+      printf '#!/bin/sh\nexec gcc "$@" -Wno-discarded-qualifiers\n' > /tmp/cc-wrapper.sh
+      chmod +x /tmp/cc-wrapper.sh
+      export CC=/tmp/cc-wrapper.sh
       OPENSSL_NO_VENDOR=1 make build -j$(nproc)
 
   - runs: |

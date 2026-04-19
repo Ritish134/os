@@ -2,12 +2,15 @@
 package:
   name: py3-ptyprocess
   version: 0.7.0
-  epoch: 9
+  epoch: 11 # go/wolfi-rsc/py3-ptyprocess
   description: Run a subprocess in a pseudo terminal
   copyright:
     - license: ISC
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 vars:
   pypi-package: ptyprocess
@@ -51,6 +54,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

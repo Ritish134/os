@@ -2,7 +2,7 @@
 package:
   name: ruby4.0-domain_name
   version: 0.6.20240107
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/ruby4.0-domain_name
   description: This is a Domain Name manipulation library for Ruby.
   copyright:
     - license: BSD-2-Clause
@@ -11,6 +11,9 @@ package:
   dependencies:
     runtime:
       - ruby-${{vars.rubyMM}}
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -45,7 +48,7 @@ vars:
 
 test:
   pipeline:
-    - runs: ruby -e "require 'domain_name'; puts 'DomainName library loaded successfully!'"
+    - uses: test/tw/gem-check
     - runs: |
         ruby <<-EOF
         require 'domain_name'

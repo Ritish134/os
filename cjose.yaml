@@ -1,17 +1,20 @@
 package:
   name: cjose
   version: 0.6.2.4
-  epoch: 0
+  epoch: 4
   description: "C library implementing the Javascript Object Signing and Encryption (JOSE) standard"
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 environment:
   contents:
     packages:
       - build-base
       - jansson-dev
-      - openssl-dev
+      - openssl-hardened-dev
 
 pipeline:
   - uses: git-checkout
@@ -68,6 +71,9 @@ subpackages:
     description: cjose static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: cjose-dev
     description: cjose dev
@@ -80,6 +86,7 @@ subpackages:
             - pkgconf
             - cjose-dev
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - runs: |
             pkg-config --modversion cjose |grep "${{package.version}}"

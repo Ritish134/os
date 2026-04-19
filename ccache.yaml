@@ -1,15 +1,19 @@
 package:
   name: ccache
-  version: "4.12.2"
-  epoch: 0
+  version: "4.13.3"
+  epoch: 0 # go/wolfi-rsc/ccache
   description: Fast C/C++ compiler cache
   copyright:
     - license: GPL-3.0-or-later
+  resources:
+    cpu: "2"
+    memory: 10Gi
 
 environment:
   contents:
     packages:
       - asciidoctor
+      - bash
       - build-base
       - busybox
       - ca-certificates-bundle
@@ -26,7 +30,7 @@ pipeline:
     with:
       repository: https://github.com/ccache/ccache
       tag: v${{package.version}}
-      expected-commit: 8c107aada09df2a40930d7064bbec8120ee76c91
+      expected-commit: cf9ed5cdfaf06d2d7f0d99c63c97e4aed8facbe3
 
   - runs: |
       cmake -B build -G Ninja \

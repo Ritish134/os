@@ -1,7 +1,7 @@
 package:
   name: icu
-  version: "78.1"
-  epoch: 0
+  version: "78.3"
+  epoch: 1
   description: "International Components for Unicode library"
   copyright:
     - license: MIT
@@ -16,8 +16,6 @@ environment:
       - busybox
       - ca-certificates-bundle
       - python3
-  environment:
-    ICU_DATA_FILTER_FILE: "./data-filter-en.json"
 
 var-transforms:
   - from: ${{package.version}}
@@ -34,19 +32,15 @@ var-transforms:
     to: major-version
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://github.com/unicode-org/icu/releases/download/release-${{package.version}}/icu4c-${{package.version}}-sources.tgz
-      expected-sha512: c366398fdb50afc6355a8c45ed1d68a18eaa5f07a5d1c4555becbcfb9d4073e65ebe1e9caf24b93779b11b36cd813c98dd59e4b19f008851f25c7262811c112d
-      strip-components: 0
-
-  - runs: |
-      # JSON-ified version of https://git.alpinelinux.org/aports/plain/main/icu/data-filter-en.yml?id=8db8f1a746ebc18ac3b56c91ed14224e424f57ec
-      echo '{"localeFilter":{"filterType":"locale","includeChildren":false,"includelist":["en_US","en_GB"]},"featureFilters":{"brkitr_dictionaries":"exclude","brkitr_rules":{"filterType":"regex","excludelist":["^.*_cj$"]},"coll_tree":{"filterType":"language","includelist":["be","cs","de","el","en","es","ff","fr","ha","hu","ig","it","kk","ms","nl","pl","pt","ro","ru","tr","uk","xh","zu"]},"conversion_mappings":"exclude","stringprep":{"excludelist":["rfc3722","rfc3920node","rfc3920res"]}},"resourceFilters":[{"categories":["coll_tree"],"rules":["-/collations/emoji","-/collations/private-unihan"]},{"categories":["translit"],"rules":["-/","+/%%Parent","+/%%ALIAS","+/*/ASCII-Latin","+/*/Latin-ASCII","+/*/Accents-Any","+/*/Any-Accents","+/*/Publishing-Any","+/*/Any-Publishing","+/*/Cyrillic-Latin","+/*/Cyrl-Latn","+/*/Latin-Cyrillic","+/*/Latn-Cyrl","+/*/Greek-Latin","+/*/Grek-Latn","+/*/Greek-Latin/BGN","+/*/el-el_Latn/BGN","+/*/Latin-Greek","+/*/Latn-Grek","+/*/Russian-Latin/BGN","+/*/ru-ru_Latn/BGN","+/*/Latin-Russian/BGN","+/*/ru_Latn-ru/BGN","+/*/Ukrainian-Latin/BGN","+/*/uk-uk_Latn/BGN","+/*/de-ASCII","+/*/de-t-de-d0-ascii"]}],"collationUCAData":"implicithan"}' > ./icu/source/data-filter-en.json
+      repository: https://github.com/unicode-org/icu
+      tag: release-${{package.version}}
+      expected-commit: 21d1eb0f306e1141c10931e914dfc038c06121da
 
   - uses: autoconf/configure
     with:
-      dir: icu/source
+      dir: icu4c/source
       opts: |
         --sysconfdir=/etc \
         --with-data-packaging=archive \
@@ -57,11 +51,11 @@ pipeline:
 
   - uses: autoconf/make
     with:
-      dir: icu/source
+      dir: icu4c/source
 
   - uses: autoconf/make-install
     with:
-      dir: icu/source
+      dir: icu4c/source
 
   - uses: strip
 
@@ -80,6 +74,7 @@ subpackages:
             icu-config --help
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
+        - uses: test/tw/devpackage
 
   - name: libicu${{vars.major-version}}
     description: International Components for Unicode library (libs)
@@ -106,7 +101,7 @@ subpackages:
       pipeline:
         - name: "make sure some .dat files are present"
           runs: |
-            find /usr/share -name *.dat | grep -q . || echo "FAIL: no .dat files found, unexpected"
+            find /usr/share -name "*.dat" | grep -q . || { echo "FAIL: no .dat files found"; exit 1; }
 
   - name: icu-doc
     description: icu docs
@@ -117,18 +112,15 @@ subpackages:
         - uses: test/docs
         - uses: test/tw/docs
 
-# switch back to this once the GitHub release stops saying pre-release
-# github:
-#   identifier: unicode-org/icu
-#   strip-prefix: release-
 update:
   enabled: true
   manual: true # ICU updates contain ABI breaking changes which require manual intervention
-  version-transform:
-    - match: \-
-      replace: .
-  release-monitor:
-    identifier: 16134
+  ignore-regex-patterns:
+    - "^release-.*-[alpha|beta|rc]$"
+  github:
+    identifier: unicode-org/icu
+    strip-prefix: release-
+    tag-filter-prefix: release-
 
 # test:
 #   pipeline:

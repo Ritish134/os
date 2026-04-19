@@ -1,10 +1,13 @@
 package:
   name: libnotify
-  version: "0.8.7"
-  epoch: 0
+  version: "0.8.8"
+  epoch: 2 # go/wolfi-rsc/libnotify
   description: "GNOME/libnotify mirror"
   copyright:
     - license: LGPL-2.1-or-later
+  resources:
+    cpu: "3"
+    memory: 9Gi
 
 environment:
   contents:
@@ -35,7 +38,7 @@ pipeline:
     with:
       repository: https://github.com/GNOME/libnotify
       tag: ${{package.version}}
-      expected-commit: 1d9767a392cbac7e899e7ab80235cfceebd52731
+      expected-commit: 8b35b6b74e4af71a20b024330b71ce0daf6c022f
 
   - uses: meson/configure
     with:
@@ -52,6 +55,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -99,5 +103,6 @@ test:
 
         gcc test.c $(pkg-config --cflags --libs libnotify) -o test
 
-        # Verify the binary was created
+        # Verify the binary was created and run it
         test -x test
+        ./test

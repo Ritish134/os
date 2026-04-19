@@ -1,10 +1,13 @@
 package:
   name: gst-plugins-bad
-  version: "1.27.50"
-  epoch: 0
+  version: "1.29.1"
+  epoch: 0 # go/wolfi-rsc/gst-plugins-bad
   description: GStreamer streaming media framework bad plug-ins
   copyright:
     - license: LGPL-2.1
+  resources:
+    cpu: "1"
+    memory: 10Gi
 
 environment:
   contents:
@@ -49,7 +52,7 @@ pipeline:
     with:
       repository: https://github.com/GStreamer/gstreamer
       tag: ${{package.version}}
-      expected-commit: 98f0ec4b5dd48b36365e85ad8695e88b4a7d7ec0
+      expected-commit: 021f5980a8dbabb8b7b736bf89eda213e84248e4
 
   - working-directory: subprojects/gst-plugins-bad
     pipeline:
@@ -75,6 +78,7 @@ subpackages:
     description: ${{package.name}} dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
@@ -82,8 +86,9 @@ subpackages:
 
 update:
   enabled: true
-  git:
-    tag-filter-prefix: "1."
+  github:
+    identifier: GStreamer/gstreamer
+    use-tag: true
 
 test:
   pipeline:

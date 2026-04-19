@@ -1,14 +1,18 @@
 package:
   name: jaeger-operator
   version: "1.65.0"
-  epoch: 11 # CVE-2025-61729
+  epoch: 16 # GHSA-hfvc-g4fc-pqhx
   description: Jaeger Operator for Kubernetes to simplify the deployment and management of the Jaeger tracing platform.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "6"
+    memory: 8Gi
 
 environment:
   contents:
     packages:
+      - go-1.25
       - openssl
 
 pipeline:
@@ -23,6 +27,7 @@ pipeline:
       deps: |-
         golang.org/x/oauth2@v0.27.0
         golang.org/x/net@v0.38.0
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:

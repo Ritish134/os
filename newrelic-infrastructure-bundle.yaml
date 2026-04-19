@@ -1,6 +1,6 @@
 package:
   name: newrelic-infrastructure-bundle
-  version: "3.3.8"
+  version: "3.3.22"
   epoch: 0
   description: New Relic Infrastructure containerised agent bundle with JDK 8
   copyright:
@@ -58,12 +58,12 @@ pipeline:
     with:
       repository: https://github.com/newrelic/infrastructure-bundle
       tag: v${{package.version}}
-      expected-commit: 7d8ec33f7ea1694834bb8bc7d5d2b62146e420ba
+      expected-commit: 1dfbab8437f05b379a2ecfe22eb44a4ff72d51e6
       destination: ${{package.name}}
 
 subpackages:
   - name: ${{package.name}}-jdk11
-    description: New Relic Infrastructure containerised agent bundle with JDK 11
+    description: Metapackage - New Relic Infrastructure containerised agent bundle with JDK 11
     dependencies:
       runtime:
         - nri-apache
@@ -106,6 +106,9 @@ subpackages:
         - nri-redis-compat
         - nrjmx
         - openjdk-11-jre
+    test:
+      pipeline:
+        - uses: test/metapackage
 
 update:
   enabled: true

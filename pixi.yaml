@@ -1,19 +1,27 @@
 package:
   name: pixi
-  version: "0.62.2"
-  epoch: 0 # GHSA-j5gw-2vrg-8fgx
+  version: "0.67.0"
+  epoch: 0
   description: "Package management made easy"
   dependencies:
     runtime:
       - bash # Requires bash at runtime when trying to run `pixi add`
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "25"
+    memory: 14Gi
+
+environment:
+  contents:
+    packages:
+      - rust-1.94
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/prefix-dev/pixi
-      expected-commit: c61316833c4ae7ceafde87f7e9908537e586a597
+      expected-commit: 0a043d7e9932f748d494da44eb298030155fc329
       tag: v${{package.version}}
 
   - name: change the tracing-subscriber version to 0.3.19 instead of =0.3.19

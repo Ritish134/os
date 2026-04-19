@@ -1,11 +1,14 @@
 # Generated from https://git.alpinelinux.org/aports/plain/main/fish/APKBUILD
 package:
   name: fish
-  version: "4.3.3"
-  epoch: 1
+  version: "4.6.0"
+  epoch: 2 # GHSA-cq8v-f236-94qc
   description: Modern interactive commandline shell
   copyright:
     - license: GPL-2.0-only
+
+vars:
+  py-version: "3.13"
 
 environment:
   contents:
@@ -18,8 +21,8 @@ environment:
       - doxygen
       - gettext-dev
       - pcre2-dev
-      - py3-sphinx-bin
-      - rust
+      - py${{vars.py-version}}-sphinx-bin
+      - rust-1.94
       - samurai
 
 pipeline:
@@ -27,7 +30,9 @@ pipeline:
     with:
       repository: https://github.com/fish-shell/fish-shell
       tag: ${{package.version}}
-      expected-commit: c98fd886fd726806c1c5c42cf1b67b458ffa1cb9
+      expected-commit: c7ecc3bd78cb8a9ec08cefe77166a23bd93db3fc
+
+  - uses: rust/cargobump
 
   - uses: cmake/configure
     with:
@@ -79,6 +84,9 @@ subpackages:
           mkdir -p ${{targets.subpkgdir}}/usr/share/${{package.name}}
           mv ${{targets.destdir}}/usr/share/${{package.name}}/tools ${{targets.subpkgdir}}/usr/share/${{package.name}}/
     description: fish (tools)
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
 update:
   enabled: true
@@ -92,9 +100,15 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        fish --version
-        fish_indent --version
-        fish_key_reader --version
-        fish_indent --help
-        fish_key_reader --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: |
+          fish
+          fish_indent
+          fish_key_reader
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          fish_indent
+          fish_key_reader

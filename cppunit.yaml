@@ -1,10 +1,13 @@
 package:
   name: cppunit
   version: 1.15.1
-  epoch: 3
+  epoch: 6 # go/wolfi-rsc/cppunit
   description: C++ unit testing framework
   copyright:
     - license: LGPL-2.1-or-later
+  resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
@@ -43,16 +46,12 @@ subpackages:
         - uses: test/tw/ldd-check
 
   - name: cppunit-doc
-    description: cppunit manpages
+    description: cppunit documentation
     pipeline:
-      - uses: split/manpages
-      - name: "relocate docs"
-        runs: |
-          mkdir -p "${{targets.subpkgdir}}"/usr/share
-          mv "${{targets.destdir}}"/usr/share/doc "${{targets.subpkgdir}}"/usr/share
+      - uses: split/alldocs
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
 update:
   enabled: true

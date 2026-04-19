@@ -1,34 +1,61 @@
 package:
   name: loki-3.6
-  version: "3.6.3"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "3.6.10"
+  epoch: 2 # GHSA-hfvc-g4fc-pqhx
   description: Like Prometheus, but for logs.
   copyright:
     - license: AGPL-3.0-or-later
   dependencies:
     provides:
       - loki=${{package.full-version}}
+  resources:
+    cpu: "41"
+    memory: 21Gi
+  test-resources:
+    cpu: "87"
+    memory: 42Gi
 
 environment:
   contents:
     packages:
+      - apk-tools
       - build-base
       - busybox
       - ca-certificates-bundle
       - go
-      - ruby-${{vars.ruby-version}}
-      - ruby-${{vars.ruby-version}}-dev
+
+var-transforms:
+  - from: ${{package.version}}
+    match: ^(\d+)\.\d+\.\d+$
+    replace: "$1"
+    to: major-version
+  - from: ${{package.version}}
+    match: ^(\d+\.\d+)\.\d+$
+    replace: "$1"
+    to: major-minor-version
+
+data:
+  - name: ruby-versions
+    items:
+      "3.2":
+      "3.3":
+      "3.4":
 
 vars:
   gem: fluent-plugin-grafana-loki
-  ruby-version: "3.2"
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 9385bc6320733e8c19283f058c685e9eaa14c4ac
+      expected-commit: 4a27a08b8f204bd83e143ccdee06844b91d4d462
       repository: https://github.com/grafana/loki
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: autoconf/make
     with:
@@ -88,30 +115,67 @@ subpackages:
         - runs: |
             loki-canary --version
 
-  - name: ruby${{vars.ruby-version}}-${{vars.gem}}
+  - range: ruby-versions
+    name: ruby${{range.key}}-${{vars.gem}}-${{vars.major-minor-version}}
     pipeline:
       - runs: |
-          # extract gem version from gemspec
+          apk add ruby-${{range.key}} ruby-${{range.key}}-dev
           export GEM_VERSION=$(grep "spec.version" clients/cmd/fluentd/${{vars.gem}}.gemspec | sed -n "s/.*spec.version *= *['\"]\\([^'\"]*\\)['\"].*/\\1/p")
-          gem install --install-dir="${{targets.contextdir}}/usr/lib/ruby/gems/${{vars.ruby-version}}.0" \
+          gem install --install-dir="${{targets.contextdir}}/usr/lib/ruby/gems/${{range.key}}.0" \
             --bindir="${{targets.contextdir}}/usr/bin" \
             --ignore-dependencies \
             --no-document \
             ${{vars.gem}} -v $GEM_VERSION
-      - uses: ruby/clean
+          apk del ruby-${{range.key}} ruby-${{range.key}}-dev
     dependencies:
       provides:
-        - fluent-plugin-grafana-${{package.name}}=${{package.full-version}}
+        - ruby${{range.key}}-${{vars.gem}}=${{package.full-version}}
       runtime:
-        - ruby${{vars.ruby-version}}-fluentd
+        - ruby${{range.key}}-fluentd
     test:
       environment:
         contents:
           packages:
-            - ruby-${{vars.ruby-version}}
+            - ruby-${{range.key}}
       pipeline:
         - runs: |
             ruby -e "require 'fluent/plugin/out_loki'"
+
+  - name: ${{package.name}}-iamguarded-compat
+    dependencies:
+      runtime:
+        - ${{package.name}}
+        - ${{package.name}}-logcli
+        - libsystemd
+      provides:
+        - loki-iamguarded-compat=${{package.full-version}}
+    options:
+      no-provides: true
+    pipeline:
+      - uses: iamguarded/build-compat
+        with:
+          package: grafana-loki
+          version: ${{vars.major-version}}
+      - runs: |
+          mkdir -p "/opt/iamguarded/grafana-loki/bin"
+          mkdir -p "/bitnami/grafana-loki/wal"
+          mkdir -p "/bitnami/grafana-loki/data"
+          mkdir -p "/bitnami/grafana-loki/loki"
+          ln -s "/usr/bin/loki" "/opt/iamguarded/grafana-loki/bin/loki"
+          ln -s "/usr/bin/logcli" "/opt/iamguarded/grafana-loki/bin/logcli"
+          ln -s "/opt/iamguarded/grafana-loki/wal" "/wal"
+          ln -s "/opt/iamguarded/grafana-loki/data" "/data"
+          ln -s "/opt/iamguarded/grafana-loki/loki" "/loki"
+      - uses: iamguarded/finalize-compat
+        with:
+          package: grafana-loki
+          version: ${{vars.major-version}}
+    test:
+      pipeline:
+        - uses: iamguarded/test-compat
+          with:
+            package: grafana-loki
+            version: ${{vars.major-version}}
 
 update:
   enabled: true

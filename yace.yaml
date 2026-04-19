@@ -1,20 +1,26 @@
 package:
   name: yace
-  version: "0.63.0"
-  epoch: 3 # CVE-2025-58187
+  version: "0.64.0"
+  epoch: 2 # GHSA-xmrv-pmrh-hhx2
   description: Prometheus exporter for AWS CloudWatch.
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "4"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     CGO_ENABLED: "0"
 
@@ -23,7 +29,12 @@ pipeline:
     with:
       repository: https://github.com/nerdswords/yet-another-cloudwatch-exporter
       tag: v${{package.version}}
-      expected-commit: a3f067d8a19470dade70f15615bde9cc83c72e82
+      expected-commit: f5ce64787de75f38c6d0498232868348ea019dbf
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/aws/aws-sdk-go-v2/service/lambda@v1.88.5
 
   - uses: go/build
     with:

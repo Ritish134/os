@@ -1,12 +1,14 @@
 package:
   name: py3-merge3
   version: "0.0.16"
-  epoch: 0
+  epoch: 5 # go/wolfi-rsc/py3-merge3
   description: Python implementation of 3-way merge
   copyright:
     - license: GPL-2.0-or-later
   dependencies:
     provider-priority: 0
+  resources:
+    memory: 1Gi
 
 vars:
   pypi-package: merge3
@@ -26,10 +28,11 @@ environment:
       - py3-supported-build-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 0852de4381cb46be5ef4ed49e3ac20c5a4a0cd46a8ff4bbb870bc27aab543306
-      uri: https://files.pythonhosted.org/packages/source/m/merge3/merge3-${{package.version}}.tar.gz
+      repository: https://github.com/breezy-team/merge3
+      tag: v${{package.version}}
+      expected-commit: 6cc145d479cee3517ae47dc41f8ac66b731f520f
 
 subpackages:
   - range: py-versions
@@ -48,6 +51,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -70,21 +74,10 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/
           mv ./cleanup/${{range.key}}/bin ${{targets.contextdir}}/usr/
     test:
-      environment:
-        contents:
-          packages:
-            - apk-tools
       pipeline:
-        - runs: |
-            apk info -L py${{range.key}}-${{vars.pypi-package}}-bin > "pkg.list"
-            echo "Please write a test for these:"
-            grep usr/bin/ pkg.list > bins.list
-            sed 's,^,> ,' bins.list
-
-            while read line; do
-              echo "== $line =="
-              /"$line" --help || :
-            done < bins.list
+        - uses: test/tw/help-check
+          with:
+            bins: merge3
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -104,8 +97,9 @@ test:
       with:
         imports: |
           import ${{vars.import}}
-    - runs: |
-        merge3 --help
+    - uses: test/tw/help-check
+      with:
+        bins: merge3
     - uses: py/one-python
       with:
         content: |

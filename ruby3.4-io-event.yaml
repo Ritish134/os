@@ -1,13 +1,16 @@
 package:
   name: ruby3.4-io-event
-  version: 1.7.1
-  epoch: 4
+  version: "1.15.1"
+  epoch: 0 # go/wolfi-rsc/ruby3.4-io-event
   description: An event loop.
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - ruby-${{vars.ruby-version}}
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 var-transforms:
   - from: ${{package.name}}
@@ -35,7 +38,7 @@ vars:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 50f15b40eac9f534a6e1c7d210255efeed356396
+      expected-commit: ccd095308e734305940c6778446646f2ab612d09
       repository: https://github.com/socketry/io-event
       tag: v${{package.version}}
 
@@ -52,8 +55,7 @@ pipeline:
 
 update:
   enabled: true
-  github:
-    identifier: socketry/io-event
+  git:
     strip-prefix: v
 
 test:

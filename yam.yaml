@@ -1,24 +1,29 @@
 package:
   name: yam
-  version: "0.2.44"
-  epoch: 0
+  version: "0.2.55"
+  epoch: 0 # CVE-2026-27140
   description: A sweet little formatter for YAML
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chainguard-dev/yam
       tag: v${{package.version}}
-      expected-commit: 45652774bb48bab9cd449885af1f6c8275976006
+      expected-commit: 2b6bed42d2dd0ee87db85f979d3b5e015ca80203
 
   - uses: go/build
     with:
       packages: .
       output: yam
-
-  - uses: strip
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -29,6 +34,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/tw/help-check
       with:
         bins: yam
@@ -39,3 +45,8 @@ test:
 
         yam test.yaml
         cmp test.yaml expected.yaml
+
+environment:
+  contents:
+    packages:
+      - go-1.25

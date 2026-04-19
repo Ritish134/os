@@ -1,13 +1,19 @@
 package:
   name: jaeger-2
-  version: "2.13.0"
-  epoch: 2 # GHSA-cfpf-hrx2-8rv6
+  version: "2.17.0"
+  epoch: 6 # GHSA-vffh-x6r8-xx99
   description: Jaeger, a Distributed Tracing Platform
   copyright:
     - license: Apache-2.0
   dependencies:
     provides:
       - jaeger=${{package.full-version}}
+  resources:
+    cpu: "6"
+    memory: 16Gi
+  test-resources:
+    cpu: "2"
+    memory: 4Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -20,13 +26,17 @@ pipeline:
     with:
       repository: https://github.com/jaegertracing/jaeger
       tag: v${{package.version}}
-      expected-commit: 63b27e1810a710ac54dc4522da0538e540bdc545
+      expected-commit: b5be18b10053a087a9bb272a1d9a0c71bcaac2c7
       recurse-submodules: true
 
   - uses: go/bump
     with:
       deps: |-
-        github.com/expr-lang/expr@v1.17.7
+        go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp@v0.19.0
+        go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp@v1.43.0
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.43.0
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/prometheus/prometheus@v0.311.2-0.20260410083055-07c6232d159b
 
   - working-directory: jaeger-ui
     runs: |
@@ -37,23 +47,21 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
+      - go-1.26
+      - node-gyp
       - nodejs-24
       - npm
 
 data:
   - name: jaeger-components
     items:
-      all-in-one: "."
-      anonymizer: "."
-      collector: "."
-      es-index-cleaner: "."
-      es-rollover: "."
-      esmapping-generator: "."
-      ingester: "."
-      jaeger: "."
-      query: "."
-      remote-storage: "."
-      tracegen: "."
+      anonymizer: "anonymizer"
+      es-index-cleaner: "es-index-cleaner"
+      es-rollover: "es-rollover"
+      esmapping-generator: "esmapping-generator"
+      jaeger: "jaeger"
+      remote-storage: "remote-storage"
+      tracegen: "tracegen"
 
 subpackages:
   - range: jaeger-components
@@ -63,51 +71,48 @@ subpackages:
         - jaeger-${{range.key}}=${{package.full-version}}
     pipeline:
       - runs: |
-          ## Only run this step if building for all-in-one package
+          ## Only run this step if building the jaeger package
           ## This builds the ui component of jaeger with npm
-          if [[ "${{range.key}}" = "all-in-one" ]]; then
-            mkdir -p jaeger-ui/packages/jaeger-ui/build
-            rm -rf cmd/query/app/ui/actual/*
+          if [[ "${{range.key}}" = "jaeger" ]]; then
+            rm -rf cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/*
             npm install --prefix jaeger-ui/
-            cd jaeger-ui/packages/jaeger-ui/build
-            npm install
+            cd jaeger-ui/packages/jaeger-ui
             npm run build
           fi
       - runs: |
-          ## Only run this step if building for all-in-one package
+          ## Only run this step if building the jaeger package
           ## This copies the build artifact into a go package
           COMPONENT="${{range.key}}"
-          if [[ "$COMPONENT" = "all-in-one" ]]; then
-            cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/query/app/ui/actual
-            find cmd/query/app/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
-            touch -t "$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S')" cmd/query/app/ui/actual/index.html.gz
+          if [[ "$COMPONENT" = "jaeger" ]]; then
+            cp -r jaeger-ui/packages/jaeger-ui/build/* cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual
+            find cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
+            touch -t "$(date -r jaeger-ui/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S')" cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
           fi
       - runs: |
           COMPONENT="${{range.key}}"
-          if [[ "$COMPONENT" = "all-in-one" ]]; then
+          if [[ "$COMPONENT" = "jaeger" ]]; then
             mkdir -p "${{targets.contextdir}}/etc/jaeger"
-            install -m644 "./sampling_strategies.json" "${{targets.contextdir}}"/etc/jaeger/sampling_strategies.json
+            install -m644 "./cmd/jaeger/sampling-strategies.json" "${{targets.contextdir}}"/etc/jaeger/sampling_strategies.json
           fi
       - uses: go/build
         with:
-          packages: ./cmd/${{range.key}}
+          packages: ./cmd/${{range.value}}
           ldflags: -X github.com/jaegertracing/jaeger/internal/version.latestVersion=v${{package.version}} -X github.com/jaegertracing/jaeger/internal/version.commitSHA=$(git rev-parse HEAD) -X github.com/jaegertracing/jaeger/internal/version.date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" "+%Y-%m-%dT%H:%M:%SZ")
           output: ${{range.key}}
+          go-package: go-1.26
     test:
       pipeline:
-        - name: "basic binary check"
-          runs: ${{range.key}} --help
-        - name: "basic version check"
-          runs: |
-            COMPONENT="${{range.key}}"
-            if [[ "$COMPONENT" != "es-index-cleaner" && "$COMPONENT" != "es-rollover" ]]; then
-              echo "Checking version of ${{range.key}}"
-              ${{range.key}} version 2>&1| grep ${{package.version}}
-            fi
-        - uses: test/virtualpackage
+        - uses: test/tw/help-check
+          with:
+            bins: ${{range.key}}
+        - if: '"${{range.key}}" != "es-index-cleaner" && "${{range.key}}" != "es-rollover"'
+          uses: test/tw/ver-check
+          with:
+            bins: ${{range.key}}
+            version-flag: version
+        - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: "jaeger-${{range.key}}"
-            real-pkg-name: "${{subpkg.name}}"
 
   - range: jaeger-components
     name: "${{package.name}}-${{range.key}}-compat"
@@ -118,15 +123,14 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.contextdir}}/go/bin"
-          ln -sf /usr/bin/${{range.key}} ${{targets.contextdir}}/go/bin/${{range.key}}-linux
+          ln -sf ../../usr/bin/${{range.key}} "${{targets.contextdir}}/go/bin/${{range.key}}-linux"
     test:
       pipeline:
         - name: "verify compat binary is in place"
           runs: readlink -v /go/bin/${{range.key}}-linux
-        - uses: test/virtualpackage
+        - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: "jaeger-${{range.key}}-compat"
-            real-pkg-name: "${{subpkg.name}}"
 
   - name: ${{package.name}}-iamguarded-compat
     description: "compat package with iamguarded jaeger image"
@@ -143,11 +147,7 @@ subpackages:
       - runs: |
           mkdir -p /opt/iamguarded/jaeger/bin/
           chmod g+rwX /opt/iamguarded
-          ln -sf /usr/bin/all-in-one /opt/iamguarded/jaeger/bin/jaeger-all-in-one
-          ln -sf /usr/bin/collector /opt/iamguarded/jaeger/bin/jaeger-collector
-          ln -sf /usr/bin/ingester /opt/iamguarded/jaeger/bin/jaeger-ingester
-          ln -sf /usr/bin/query /opt/iamguarded/jaeger/bin/jaeger-query
-          ln -sf /usr/bin/jaeger /opt/iamguarded/jaeger/bin/jaeger-jaeger
+          ln -sf ../../../../usr/bin/jaeger /opt/iamguarded/jaeger/bin/jaeger
       - uses: iamguarded/finalize-compat
         with:
           package: jaeger
@@ -182,46 +182,19 @@ test:
   environment:
     contents:
       packages:
-        - ${{package.name}}-all-in-one
         - ${{package.name}}-anonymizer
-        - ${{package.name}}-collector
         - ${{package.name}}-es-index-cleaner
         - ${{package.name}}-es-rollover
         - ${{package.name}}-esmapping-generator
-        - ${{package.name}}-ingester
-        - ${{package.name}}-query
+        - ${{package.name}}-jaeger
         - ${{package.name}}-remote-storage
         - ${{package.name}}-tracegen
         - jq
   pipeline:
-    - name: "Check all in one status"
-      uses: test/daemon-check-output
-      with:
-        start: "/usr/bin/all-in-one"
-        timeout: 60
-        expected_output: |
-          Starting HTTP server
-    - name: "Check connector status"
-      uses: test/daemon-check-output
-      with:
-        start: "/usr/bin/collector"
-        timeout: 60
-        expected_output: |
-          Admin server started
-    - name: "Check query status"
-      uses: test/daemon-check-output
-      with:
-        start: "/usr/bin/query"
-        timeout: 60
-        expected_output: |
-          Admin server started
-    - name: "Check ingester status"
-      uses: test/daemon-check-output
-      with:
-        start: "/usr/bin/query"
-        timeout: 60
-        expected_output: |
-          Admin server started
+    - uses: test/tw/ldd-check
+    - name: "Check jaeger version"
+      runs: |
+        jaeger version
 
 update:
   enabled: true

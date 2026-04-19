@@ -1,12 +1,15 @@
 package:
   name: py3-sqlalchemy
-  version: "2.0.45"
-  epoch: 0
+  version: "2.0.49"
+  epoch: 0 # go/wolfi-rsc/py3-sqlalchemy
   description: Database Abstraction Library
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 vars:
   pypi-package: sqlalchemy
@@ -29,7 +32,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sqlalchemy/sqlalchemy
-      expected-commit: b24ab5ef942a3643427ef121298540fe8b0f5639
+      expected-commit: 5ac7cfae696c39420ba0ae6e9ca6938f54f9bfc6
       tag: rel_${{vars.mangled-package-version}}
 
 subpackages:
@@ -41,6 +44,7 @@ subpackages:
       provides:
         - py3-${{vars.pypi-package}}
       runtime:
+        - py${{range.key}}-greenlet
         - py${{range.key}}-typing-extensions
     pipeline:
       - uses: py/pip-build-install
@@ -49,6 +53,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,16 +1,23 @@
 package:
   name: mesa
-  version: "25.3.3"
-  epoch: 0
+  version: "26.0.5"
+  epoch: 0 # go/wolfi-rsc/mesa
   description: Mesa DRI OpenGL library
   copyright:
     - license: MIT AND SGI-B-2.0 AND BSL-1.0
   dependencies:
     runtime:
       - libglvnd
+  resources:
+    cpu: "14"
+    memory: 13Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 vars:
   llvm-ver: 19
+  py-version: "3.13"
 
 environment:
   contents:
@@ -48,12 +55,12 @@ environment:
       - llvm-${{vars.llvm-ver}}
       - llvm-${{vars.llvm-ver}}-dev
       - meson
-      - py3-mako
-      - py3-markupsafe
-      - py3-pygments
-      - py3-pyyaml
-      - py3-setuptools
-      - python3
+      - py${{vars.py-version}}-mako
+      - py${{vars.py-version}}-markupsafe
+      - py${{vars.py-version}}-pygments
+      - py${{vars.py-version}}-pyyaml
+      - py${{vars.py-version}}-setuptools
+      - python-${{vars.py-version}}
       - systemd-dev
       - vulkan-loader
       - wayland-dev
@@ -67,7 +74,7 @@ pipeline:
     with:
       repository: https://gitlab.freedesktop.org/mesa/mesa
       tag: mesa-${{package.version}}
-      expected-commit: a9c6420d8c39ce10bcc60a9c32308b7b9b7d34d9
+      expected-commit: e4bd78e80ad7178162bf0e138b93a2aa2eac0434
 
   - runs: |
       export CFLAGS="$CFLAGS -O2 -g1"
@@ -162,6 +169,7 @@ subpackages:
     description: mesa dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
 
 test:

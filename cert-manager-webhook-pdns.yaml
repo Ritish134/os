@@ -1,32 +1,40 @@
 package:
   name: cert-manager-webhook-pdns
-  version: "2.5.3"
-  epoch: 3 # CVE-2025-61729
+  version: "2.5.5"
+  epoch: 6 # GHSA-hfvc-g4fc-pqhx
   description: A PowerDNS webhook for cert-manager
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 9Gi
 
 environment:
+  contents:
+    packages:
+      - go-1.26
   environment:
     CGO_ENABLED: "0"
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 4af2c5474aacfedea8d682af613343c0cbd4bc1a
+      expected-commit: b49f2e0e0df6c1a9392b82098ac968583da7f057
       repository: https://github.com/zachomedia/cert-manager-webhook-pdns
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        golang.org/x/net@v0.51.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
       output: webhook
       packages: .
-      ldflags: '-w -extldflags "-static"'
+      go-package: go-1.26
 
 update:
   enabled: true
@@ -46,31 +54,27 @@ test:
       packages:
         - mkcert
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
       with:
         serviceaccount: true
-    - runs: |
-        mkcert example.com
-        export CA_OTHER="$(cat ~/.local/share/mkcert/rootCA.pem)"
-        kubectl create configmap extension-apiserver-authentication \
-        --from-literal=client-ca-file="$CA_OTHER" \
-        --from-literal=requestheader-client-ca-file="$CA_OTHER" \
-        -n kube-system \
-        --dry-run=client -o yaml | kubectl apply -f -
-
-        kubectl create rolebinding default-get-configmap \
-        --clusterrole=view \
-        --serviceaccount=default:default \
-        --namespace=kube-system
-
-        # Wait a moment for RBAC to propagate
-        sleep 2
-
-        webhook > /tmp/webhook.log 2>&1 &
-        sleep 5
-        if ! grep -q "Starting controller" /tmp/webhook.log; then
-          echo "Webhook server did not start correctly"
-          exit 1
-        fi
-
-        echo "Webhook server started successfully"
+    - uses: test/daemon-check-output
+      with:
+        setup: |
+          mkcert example.com
+          CA_OTHER="$(cat ~/.local/share/mkcert/rootCA.pem)"
+          kubectl create configmap extension-apiserver-authentication \
+            --from-literal=client-ca-file="$CA_OTHER" \
+            --from-literal=requestheader-client-ca-file="$CA_OTHER" \
+            -n kube-system \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create rolebinding default-get-configmap \
+            --clusterrole=view \
+            --serviceaccount=default:default \
+            --namespace=kube-system
+          # Wait a moment for RBAC to propagate
+          sleep 2
+        start: /usr/bin/webhook
+        timeout: 60
+        expected_output: Starting controller
+        error_strings: ""

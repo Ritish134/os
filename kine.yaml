@@ -1,7 +1,7 @@
 package:
   name: kine
-  version: "0.14.9"
-  epoch: 1 # GHSA-cfpf-hrx2-8rv6
+  version: "0.14.16"
+  epoch: 2 # GHSA-9jj7-4m8r-rfcm
   description: Run Kubernetes on MySQL, Postgres, sqlite, dqlite, not etcd.
   copyright:
     - license: Apache-2.0
@@ -16,27 +16,28 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 683fdcda2a3d72a5230e403550578dfbf47331e7
+      expected-commit: 7604b30bd4c75eef9d010c4f1208bd22e460fc51
       repository: https://github.com/k3s-io/kine
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
         github.com/expr-lang/expr@v1.17.7
+        filippo.io/edwards25519@v1.1.1
+        github.com/nats-io/nats-server/v2@v2.12.6
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/jackc/pgx/v5@v5.9.0
 
   - runs: |
       export CGO_CFLAGS="-Wno-error=braces-around-scalar-init"
       ./scripts/build
       install -Dm755 ./bin/kine "${{targets.destdir}}/usr/bin/kine"
-
-  - uses: strip
 
 update:
   enabled: true
@@ -51,6 +52,7 @@ test:
         - sqlite
         - curl
   pipeline:
+    - uses: test/tw/ldd-check
     - name: "Check kine version"
       runs: |
         kine --version
@@ -64,8 +66,8 @@ test:
         expected_output: |
           Kine available at http://127.0.0.1:2379
         post: |
-          # Wait for kine to start
-          sleep 5
+          set -euo pipefail
+          wait-for-it localhost:2379 -t 30
 
           # Check metrics endpoint
           curl -s http://localhost:8080/metrics | grep -q "kine_"

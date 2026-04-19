@@ -1,12 +1,15 @@
 package:
   name: py3-fonttools
-  version: "4.61.1"
-  epoch: 0
+  version: "4.62.1"
+  epoch: 1 # go/wolfi-rsc/py3-fonttools
   description: Tools to manipulate font files
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 vars:
   pypi-package: fonttools
@@ -29,7 +32,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/fonttools/fonttools
-      expected-commit: 0a6517921cb779fef919a5e2cbc1a01e77375ced
+      expected-commit: da54a2924009c9a6497dad23f4a6be4a96a8b0e7
       tag: ${{package.version}}
 
 subpackages:
@@ -49,6 +52,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

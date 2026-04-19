@@ -1,7 +1,7 @@
 package:
   name: chainguard-source
-  version: "1.5"
-  epoch: 0
+  version: "1.7"
+  epoch: 2
   description: "Fetch all sources referenced by a Chainguard Package or Image SBOM"
   copyright:
     - license: Apache-2.0
@@ -11,6 +11,8 @@ package:
       - busybox
       - bzip2
       - cosign
+      - crane
+      - curl
       - git
       - gnutar
       - gzip
@@ -18,6 +20,9 @@ package:
       - openssh-client
       - wget
       - xz
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -30,7 +35,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chainguard-dev/chainguard-source
-      expected-commit: 6f09545036716db527d05cf22cf0465f9228d64a
+      expected-commit: 86f067721b6359cc7baaf1055c7ab2e9815464a5
       tag: ${{package.version}}
 
   - runs: |

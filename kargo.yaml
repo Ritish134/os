@@ -1,10 +1,13 @@
 package:
   name: kargo
-  version: "1.8.4"
-  epoch: 2 # GHSA-cfpf-hrx2-8rv6
+  version: "1.9.6"
+  epoch: 0 # CVE-2026-32280
   description: Application lifecycle orchestration
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "7"
+    memory: 18Gi
 
 environment:
   contents:
@@ -12,7 +15,7 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
       - node-gyp
       - nodejs
       - pnpm
@@ -24,20 +27,24 @@ pipeline:
     with:
       repository: https://github.com/akuity/kargo
       tag: v${{package.version}}
-      expected-commit: dc38d05ff871ace7ae40fc23ef333ca717c96909
+      expected-commit: 62b544749e958be17cb109445348783c2073dd67
 
   - uses: go/bump
     with:
       deps: |-
-        github.com/containerd/containerd@v1.7.29
-        golang.org/x/crypto@v0.45.0
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
       modroot: hack/tools
+      tidy: false
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-        github.com/expr-lang/expr@v1.17.7
+        github.com/quic-go/quic-go@v0.57.0
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - runs: |
       cd ui
@@ -48,7 +55,7 @@ pipeline:
     with:
       packages: ./cmd/controlplane
       output: kargo
-      ldflags: "-w -X github.com/akuity/kargo/internal/version.version=${{package.version}} -X github.com/akuity/kargo/internal/version.gitCommit=$(git rev-parse HEAD)"
+      ldflags: "-X github.com/akuity/kargo/internal/version.version=${{package.version}} -X github.com/akuity/kargo/internal/version.gitCommit=$(git rev-parse HEAD)"
 
 subpackages:
   - name: kargo-oci-compat
@@ -80,10 +87,6 @@ update:
 
 test:
   pipeline:
-    - name: Verify kargo version
-      runs: |
-        kargo version
-        kargo --help
-    - name: Run a basic kargo command
-      runs: |
-        kargo help
+    - uses: test/tw/help-check
+      with:
+        bins: kargo

@@ -1,7 +1,7 @@
 package:
   name: conftest
-  version: "0.66.0"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "0.68.2"
+  epoch: 0 # GHSA-92mm-2pjq-r785
   description: Write tests against structured configuration data using the Open Policy Agent Rego query language
   copyright:
     - license: Apache-2.0
@@ -12,9 +12,15 @@ package:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 08529c7174691f2c1d8325085e9489ce9e221cc2
+      expected-commit: 36f23bf930b808c73c4e41c6a4eeac5b620b2225
       repository: https://github.com/open-policy-agent/conftest
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
@@ -33,10 +39,10 @@ update:
 
 test:
   pipeline:
-    - name: Verify conftest help command
-      runs: |
-        conftest --help
-        conftest --version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: conftest
     - name: Verify a simple Rego policy
       runs: |
         echo 'package main' > test.rego

@@ -1,7 +1,7 @@
 package:
   name: airflow-3
-  version: "3.1.5"
-  epoch: 2 # GHSA-428g-f7cq-pgp5
+  version: "3.2.0"
+  epoch: 0
   description: Platform to programmatically author, schedule, and monitor workflows
   options:
     #  There is a dependency on libarrow.so although it
@@ -24,6 +24,9 @@ package:
       - airflow=${{package.full-version}}
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "5"
+    memory: 11Gi
 
 vars:
   airflow-home: '/opt/airflow'
@@ -62,7 +65,7 @@ pipeline:
     with:
       repository: https://github.com/apache/airflow
       tag: ${{package.version}}
-      expected-commit: a42f2fba5051645adfe56526d38db4e8155f5157
+      expected-commit: 3bc3ccfacc3dec9f359a3b153bfd4fc706c661ba
 
   - runs: |
       curl -f https://raw.githubusercontent.com/apache/airflow/constraints-${{package.version}}/constraints-${{vars.python-version}}.txt \
@@ -73,11 +76,8 @@ pipeline:
       constraints-file: constraints-${{vars.python-version}}.txt
       only-replace: false
       packages: |
-        aiohttp==3.13.3 # GHSA-6mq8-rvhq-8wgg GHSA-fh55-r93g-j68g GHSA-g84x-mcqj-x9qq GHSA-jj3x-wxrx-4x23
-        cryptography==44.0.1 # GHSA-79v4-65xg-pq4g, GHSA-h4gh-qq45-vh27
-        filelock==3.20.1
         commons-lang3==3.18.0 # GHSA-j288-q9x7-2f5v
-        marshmallow==3.26.2 # GHSA-428g-f7cq-pgp5
+        authlib==1.6.9 # GHSA-7wc2-qxgw-g8gg
 
   - runs: |
       # ZIP doesn't handle the SDE we set correctly, so set it to 1980-01-01
@@ -85,6 +85,11 @@ pipeline:
 
       # Dynamically set cflags for mysqlclient
       export MYSQLCLIENT_CFLAGS=`mysql_config --cflags`
+
+      # Upstream pyproject.toml sets exclude-newer = "4 days" which causes uv
+      # to ignore packages published after the lock was generated. Since we're
+      # installing a released version, disable this filter.
+      sed -i '/^exclude-newer/d' pyproject.toml
 
       # Create and source virtual environment
       uv venv ${{vars.venv-home}} --system-site-packages
@@ -95,6 +100,32 @@ pipeline:
 
       # Graphviz is used by Airflow's DAG viewer
       uv pip install --constraint constraints-${{vars.python-version}}.txt graphviz
+
+      # apache-airflow-providers-cncf-kubernetes caps cryptography at <46.0.0 but
+      # 46.0.5 still should be compatible. Install without deps to apply the security fix for
+      # GHSA-r6ph-v2qm-q3c2
+      uv pip install --no-deps cryptography==46.0.6
+
+      # apache-airflow-core==3.1.8 pins pyjwt==2.11.0 exactly, but 2.12.0 is
+      # compatible. Install without deps to apply the security fix for
+      # CVE-2026-32597 / GHSA-752w-5fwx-jx9f
+      uv pip install --no-deps pyjwt==2.12.0
+
+      # apache-airflow-providers-google==20.0.0 pins pyopenssl==25.1.0 exactly,
+      # but 26.0.0 is compatible. Install without deps to apply the security fix for
+      # CVE-2026-27459 / GHSA-5pwr-322w-8jr4 and CVE-2026-27448 / GHSA-vp96-hxj8-p424
+      uv pip install --no-deps pyopenssl==26.0.0
+
+      # GHSA-5239-wwwm-4pmq
+      uv pip install --no-deps pygments==2.20.0
+
+      # GHSA-gc5v-m9x4-r6x2
+      uv pip install --no-deps requests==2.33.0
+      # Fixes a bunch of CVEs
+      uv pip install --no-deps aiohttp==3.13.4
+      find ${{vars.venv-home}}/lib/python${{vars.python-version}}/site-packages -maxdepth 1 -name "aiohttp-*.dist-info" ! -name "aiohttp-3.13.4.dist-info" -exec rm -rf {} +
+      # GHSA-53mr-6c8q-9789 GHSA-jjhc-v7c2-5hh6
+      uv pip install --no-deps litellm==1.83.0
 
       # Uninstall pip and virtualenv from virtual environment
       #
@@ -247,8 +278,9 @@ test:
   pipeline:
     - name: "Test Python package import and version"
       runs: |
+        set -euo pipefail
         source ${{vars.venv-home}}/bin/activate
-        airflow version | grep ${{package.version}}
+        airflow version
         python${{vars.python-version}} -c "import airflow"
     - name: "Test Flask is at the supported version"
       runs: |
@@ -257,6 +289,7 @@ test:
         python -c "from flask.json import JSONEncoder"
     - name: "List providers"
       runs: |
+        set -euo pipefail
         source ${{vars.venv-home}}/bin/activate
 
         PROVIDERS_LIST="$(airflow providers list)"
@@ -267,6 +300,7 @@ test:
         done
     - name: "Load and test a DAG"
       runs: |
+        set -euo pipefail
         source ${{vars.venv-home}}/bin/activate
 
         # Set environment variables
@@ -298,7 +332,7 @@ test:
         airflow dags reserialize
 
         # List DAGs
-        airflow dags list | grep test_dag || (echo "DAG not found!" && exit 1)
+        airflow dags list | grep -F test_dag || (echo "DAG not found!" && exit 1)
 
         # Test Task Execution in DAG
         airflow tasks test test_dag test_task 2024-01-01 || (echo "Task execution failed!" && exit 1)

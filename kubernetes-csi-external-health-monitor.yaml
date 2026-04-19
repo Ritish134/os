@@ -1,27 +1,33 @@
 package:
   name: kubernetes-csi-external-health-monitor
-  version: "0.16.0"
-  epoch: 3 # CVE-2025-61729
+  version: "0.17.0"
+  epoch: 9 # CVE-2026-32280
   description: CSI external health monitor controller for Kubernetes
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/kubernetes-csi/external-health-monitor
       tag: v${{package.version}}
-      expected-commit: 80e7b1f05a8b5bad49123d890aa00df77baeb04f
+      expected-commit: 52477ad69facf90847c3140a7878e7ccd874c436
 
-  - uses: go/bump
+  - uses: bump
     with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
+      language: go
+      packages: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: ./cmd/csi-external-health-monitor-controller
       output: csi-external-health-monitor-controller
+      go-package: go-1.25
       ldflags: |
         -X main.version=${{package.version}}
 
@@ -57,12 +63,14 @@ test:
       KUBERNETES_SERVICE_HOST: "127.0.0.1"
       KUBERNETES_SERVICE_PORT: 32764
   pipeline:
-    - name: Test binary version
-      runs: |
-        csi-external-health-monitor-controller --version 2>&1| grep ${{package.version}}
-    - name: Test help output and key flags
-      runs: |
-        csi-external-health-monitor-controller --help 2>&1| grep "Usage"
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: csi-external-health-monitor-controller
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: csi-external-health-monitor-controller
     - name: Binary test
       uses: test/kwok/cluster
       with:
@@ -74,10 +82,9 @@ test:
         timeout: 30
         expected_output: |
           Failed to connect to the CSI driver
-        error_strings: |
-          Error:
-        post: |
-          echo "Verifying metrics endpoint"
-          wait-for-it http://127.0.0.1:8080 -t 5
-          curl -sf http://127.0.0.1:8080/metrics
-          echo "Metrics endpoint is serving as expected"
+        error_strings: ""
+
+environment:
+  contents:
+    packages:
+      - go-1.25

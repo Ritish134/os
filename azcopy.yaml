@@ -1,23 +1,37 @@
 package:
   name: azcopy
-  version: "10.31.1"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "10.32.3"
+  epoch: 1 # GHSA-hfvc-g4fc-pqhx
   description: The new Azure Storage data transfer utility
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/Azure/azure-storage-azcopy
       tag: v${{package.version}}
-      expected-commit: be9820d06f6c92f7607c87b9eae170903032b116
+      expected-commit: e3c0e0ca2a2b9079c4c41f080fcada34ae83c251
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - uses: go/build
     with:
       packages: .
       output: azcopy
-      go-package: go
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -27,6 +41,21 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        azcopy --version
-        azcopy --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: azcopy
+    - uses: test/tw/help-check
+      with:
+        bins: azcopy
+        expect-contains: copy sync list bench
+    - name: Verify env subcommand
+      runs: |
+        set -euo pipefail
+        # azcopy env lists supported environment variables
+        azcopy env 2>&1 | grep -Fi "AZCOPY"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

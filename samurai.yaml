@@ -1,13 +1,16 @@
 package:
   name: samurai
   version: 1.2
-  epoch: 3
+  epoch: 6 # go/wolfi-rsc/samurai
   description: "ninja-compatible build tool written in C"
   copyright:
     - license: Apache-2.0
   dependencies:
     provides:
       - ninja=1.9.0
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -18,10 +21,11 @@ environment:
       - wolfi-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://github.com/michaelforney/samurai/releases/download/${{package.version}}/samurai-${{package.version}}.tar.gz
-      expected-sha256: 3b8cf51548dfc49b7efe035e191ff5e1963ebc4fe8f6064a5eefc5343eaf78a5
+      repository: https://github.com/michaelforney/samurai
+      tag: ${{package.version}}
+      expected-commit: da43f8c7006a0d76048c110594dfc86a9f8c50de
 
   - uses: patch
     with:
@@ -55,8 +59,8 @@ subpackages:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 96779
+  github:
+    identifier: michaelforney/samurai
 
 test:
   pipeline:
@@ -64,3 +68,47 @@ test:
     - runs: |
         ninja --version
         samu --version
+    - name: Test samu can execute a build
+      runs: |
+        set -euo pipefail
+
+        # Create a temporary build directory
+        mkdir -p /tmp/samu-test
+        cd /tmp/samu-test
+
+        # Create a simple build.ninja file
+        tee build.ninja <<'EOF'
+        rule echo
+          command = echo $msg > $out
+        build output.txt: echo
+          msg = hello from samu
+        EOF
+
+        # Run samu to execute the build
+        samu
+
+        # Verify the output file was created with expected content
+        stat output.txt
+        grep -F "hello from samu" output.txt
+    - name: Test ninja symlink can execute a build
+      runs: |
+        set -euo pipefail
+
+        # Create a temporary build directory
+        mkdir -p /tmp/ninja-test
+        cd /tmp/ninja-test
+
+        # Create a simple build.ninja file
+        tee build.ninja <<'EOF'
+        rule echo
+          command = echo $msg > $out
+        build output.txt: echo
+          msg = hello from ninja
+        EOF
+
+        # Run ninja (symlink to samu) to execute the build
+        ninja
+
+        # Verify the output file was created with expected content
+        stat output.txt
+        grep -F "hello from ninja" output.txt

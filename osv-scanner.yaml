@@ -1,22 +1,28 @@
 package:
   name: osv-scanner
-  version: "2.3.1"
-  epoch: 0 # CVE-2025-61729
+  version: "2.3.5"
+  epoch: 0 # GHSA-89xv-2j6f-qhc8
   description: Vulnerability scanner written in Go which uses the data provided by https://osv.dev
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: d03774202cbaf17a260c2f4a073585baee524b45
+      expected-commit: 30bcc134e23fbc35731021ee43ec433c483715d7
       tag: v${{package.version}}
       repository: https://github.com/google/osv-scanner
 
@@ -24,11 +30,13 @@ pipeline:
     with:
       packages: ./cmd/osv-scanner/
       output: osv-scanner
+      go-package: go-1.26
 
   - uses: go/build
     with:
       packages: ./cmd/osv-reporter/
       output: osv-reporter
+      go-package: go-1.26
 
 update:
   enabled: true

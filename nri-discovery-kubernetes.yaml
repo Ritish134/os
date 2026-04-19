@@ -1,22 +1,26 @@
 package:
   name: nri-discovery-kubernetes
-  version: "1.13.7"
-  epoch: 0 # CVE-2025-61729
+  version: "1.14.0"
+  epoch: 1 # CVE-2026-32280
   description: New Relic Kubernetes Auto-Discovery
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/newrelic/nri-discovery-kubernetes
-      expected-commit: c42d514a3799b3c8845f984e57b5bf372523ec85
+      expected-commit: 9a36991f6a74f8ea76d56f4ff0361ff19c47f9cf
       tag: v${{package.version}}
 
   - uses: go/build

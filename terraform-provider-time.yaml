@@ -1,13 +1,16 @@
 package:
   name: terraform-provider-time
   version: "0.13.1"
-  epoch: 5 # CVE-2025-61729
+  epoch: 14 # CVE-2026-32280
   description: Utility provider that provides Time-Based Resources
   copyright:
     - license: MPL-2.0
   dependencies:
     runtime:
       - terraform-local-provider-config
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
@@ -15,6 +18,11 @@ pipeline:
       expected-commit: aeccb44b5627498df071790595c925cff35469d1
       repository: https://github.com/hashicorp/terraform-provider-time
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
@@ -36,5 +44,25 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        terraform-provider-time --help
+    - name: Verify provider plugin protocol handshake
+      runs: |
+        set -euo pipefail
+        # Terraform providers use HashiCorp go-plugin framework.
+        # When run directly, they output a message indicating they are plugins
+        # and exit non-zero; use set +e to allow the expected non-zero exit
+        # while still catching real failures (e.g. binary not found = exit 127).
+        set +e
+        terraform-provider-time > /tmp/provider-output.txt 2>&1
+        rc=$?
+        set -e
+        # Exit 127 means the binary was not found — that is a real failure.
+        test "$rc" -ne 127
+        grep -Fi "plugin" /tmp/provider-output.txt
+    - uses: test/tw/symlink-check
+      with:
+        allow-absolute: true
+
+environment:
+  contents:
+    packages:
+      - go-1.25

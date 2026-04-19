@@ -1,12 +1,15 @@
 package:
   name: py3-mdurl
   version: 0.1.2
-  epoch: 8
+  epoch: 11 # go/wolfi-rsc/py3-mdurl
   description: Markdown URL utilities
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 1Gi
 
 vars:
   pypi-package: mdurl
@@ -50,6 +53,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,10 +1,13 @@
 package:
   name: rust-analyzer
-  version: "20260105"
-  epoch: 0 # GHSA-xwfj-jgwm-7wp5
+  version: "20260413"
+  epoch: 2
   description: A Rust compiler front-end for IDEs
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "13"
+    memory: 11Gi
 
 environment:
   contents:
@@ -14,7 +17,7 @@ environment:
       - ca-certificates-bundle
       - cargo-auditable
       - git
-      - openssl-dev
+      - openssl-hardened-dev
       - rust
 
 var-transforms:
@@ -28,7 +31,7 @@ pipeline:
     with:
       repository: https://github.com/rust-lang/rust-analyzer
       tag: ${{vars.mangled-package-version}}
-      expected-commit: 6a1246b69ca761480b9278df019f717b549cface
+      expected-commit: 7b6e1249b7320e16792e31ce67bb2e5f4acd6a8b
 
   - uses: rust/cargobump
 

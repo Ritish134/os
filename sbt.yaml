@@ -1,6 +1,6 @@
 package:
   name: sbt
-  version: "1.12.0"
+  version: "1.12.9"
   epoch: 0
   description: A scala build tool
   copyright:
@@ -17,20 +17,19 @@ environment:
       - busybox
       - ca-certificates-bundle
       - openjdk-11-default-jdk
-      - sbt<1.11.6 # Temporary due to https://github.com/sbt/sbt/issues/8333
+      - sbt
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sbt/sbt
       tag: v${{package.version}}
-      expected-commit: fcb4e0e43c62c6690d8c936cb4a62a2c09418681
+      expected-commit: 00899b06571702fc9f4bcce72ec7307f59cd22fa
 
   - runs: |
+      sbt -Dsbt.build.version=${{package.version}} launcherPackage/Universal/packageZipTarball
+
       cd launcher-package
-
-      sbt -Dsbt.build.version=${{package.version}}  universal:packageZipTarball
-
       tar -xf target/universal/sbt.tgz
 
       mkdir -p ${{targets.destdir}}/usr/share/java/sbt/bin
@@ -59,7 +58,27 @@ test:
     environment:
       JAVA_HOME: /usr/lib/jvm/java-11-openjdk
   pipeline:
-    - name: Test sbt compile
+    - name: Verify sbt launcher components
       runs: |
-        cd HelloWorldProject
-        sbt run > build.log 2>&1 &
+        # Verify launcher jar exists
+        stat /usr/share/java/sbt/bin/sbt-launch.jar
+
+        # Verify sbt script exists and is executable
+        stat /usr/share/java/sbt/bin/sbt
+        test -x /usr/share/java/sbt/bin/sbt
+    - name: Test sbt functionality
+      runs: |
+        set -euo pipefail
+        mkdir -p /tmp/sbt-test/project
+        cd /tmp/sbt-test
+
+        # Create minimal build definition
+        echo 'name := "test"' > build.sbt
+        echo 'sbt.version=${{package.version}}' > project/build.properties
+
+        # Run sbt tasks to verify the tool works
+        sbt tasks | grep -F "compile"
+    - uses: test/tw/ver-check
+      with:
+        bins: sbt
+        version: ${{package.version}}

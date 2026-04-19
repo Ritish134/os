@@ -1,7 +1,7 @@
 package:
   name: rancher-agent-2.13
-  version: "2.13.1"
-  epoch: 0 # GHSA-r6j8-c6r2-37rr
+  version: "2.13.4"
+  epoch: 3 # CVE-2026-27143
   description: Complete container management platform - agent
   copyright:
     - license: Apache-2.0
@@ -12,7 +12,6 @@ package:
       - acl-dev
       - bash
       - busybox # nsenter
-      - busybox
       - curl
       - gawk
       - git
@@ -49,19 +48,23 @@ pipeline:
     with:
       repository: https://github.com/rancher/rancher
       tag: v${{package.version}}
-      expected-commit: 4c2e04b310799e106c48d7e36f544f5e33b22f0a
+      expected-commit: 13637a346bac544620e32787d3564f63c53d6fd1
 
   - uses: go/bump
     with:
       deps: |-
-        k8s.io/kubernetes@v1.34.2
-      modroot: pkg/apis
+        google.golang.org/grpc@v1.79.3
+      modroot: hack/airgap
+      tidy: false
 
   - uses: go/bump
     with:
       deps: |-
         github.com/containerd/containerd@v1.7.29
         github.com/docker/docker@v25.0.13
+        google.golang.org/grpc@v1.79.3
+        github.com/russellhaering/goxmldsig@v1.6.0
+        github.com/go-jose/go-jose/v3@v3.0.5
 
   # Copied from rancher-agent-2.8.yaml
   # Due to the unusual structure of the upstream go.mod, we can't currently use
@@ -92,8 +95,10 @@ pipeline:
 
 test:
   pipeline:
-    - runs: |
-        agent | grep "Rancher agent version ${{package.version}}"
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: agent
 
 update:
   enabled: true
@@ -102,3 +107,8 @@ update:
     strip-prefix: v
     use-tag: true
     tag-filter: v2.13.
+
+environment:
+  contents:
+    packages:
+      - go-1.25

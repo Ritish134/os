@@ -1,12 +1,15 @@
 package:
   name: libnvidia-container
-  version: "1.18.1"
-  epoch: 1 # CVE-2025-47910
+  version: "1.19.0"
+  epoch: 0
   description: NVIDIA container runtime library
   copyright:
     - license: Apache-2.0
     - license: GPL-3.0-only
     - license: LGPL-3.0-or-later
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 environment:
   contents:
@@ -41,7 +44,7 @@ pipeline:
     with:
       repository: https://github.com/NVIDIA/libnvidia-container
       tag: v${{package.version}}
-      expected-commit: 889a3bb5408c195ed7897ba2cb8341c7d249672f
+      expected-commit: 7585946c6471402577e14474d7c56ca5be0348d7
 
   # Fix prefix to /usr instead of /usr/local
   - runs: sed -i 's|export prefix *= */usr/local|export prefix = /usr|' Makefile
@@ -73,13 +76,23 @@ test:
   pipeline:
     - uses: test/pkgconf
     - uses: test/tw/ldd-check
-    - name: Test nvidia-container-cli
-      runs: |
-        nvidia-container-cli --help
-        nvidia-container-cli --version
+    - uses: test/tw/help-check
+      with:
+        bins: nvidia-container-cli
+    - uses: test/tw/ver-check
+      with:
+        bins: nvidia-container-cli
+        version: ${{package.version}}
     - name: Test nvidia-container-cli with privileged mode
       runs: |
-        set +e
+        set -euo pipefail
         useradd nvidia
-        # This is the expected error since `libnvidia-ml.so` must be available on the host system. Library can be found in the CUDA.
-        sudo -u nvidia nvidia-container-cli --user=nvidia info | grep -qi "load library failed: libnvidia-ml.so.1"
+        # nvidia-container-cli exits non-zero when libnvidia-ml.so.1 is absent (expected in CI).
+        # Temporarily disable errexit to capture output from the expected failure.
+        set +e
+        output=$(sudo -u nvidia nvidia-container-cli --user=nvidia info 2>&1)
+        exit_code=$?
+        set -e
+        # Verify the failure is the expected missing-library error, not something else.
+        echo "$output" | grep -Fi "load library failed: libnvidia-ml.so.1"
+        [ "$exit_code" -ne 0 ]

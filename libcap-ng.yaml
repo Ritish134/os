@@ -1,7 +1,7 @@
 package:
   name: libcap-ng
-  version: 0.8.5
-  epoch: 4
+  version: "0.9.3"
+  epoch: 0
   description: POSIX capabilities library
   copyright:
     - license: GPL-2.0-or-later AND LGPL-2.1-or-later
@@ -14,14 +14,16 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
+      - gettext-dev
       - libtool
+      - pkgconf-dev
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/stevegrubb/libcap-ng.git
       tag: v${{package.version}}
-      expected-commit: f5d39702622208b3ada064d7b2eaeaf1454c9bd3
+      expected-commit: 0ab44af5a23e8edb69a39c0dc803ce4395ff2086
 
   - runs: |
       ./autogen.sh
@@ -47,6 +49,41 @@ subpackages:
     pipeline:
       - uses: split/static
     description: libcap-ng static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
+
+  # Move utils before split/dev since split/dev also moves usr/bin
+  - range: ""
+    name: libcap-ng-utils
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}/usr/bin"
+          mv "${{targets.destdir}}"/usr/bin/* "${{targets.subpkgdir}}/usr/bin/"
+    description: posix capabilities utils
+    test:
+      pipeline:
+        - runs: |
+            set -euo pipefail
+            # Verify binaries exist
+            stat /usr/bin/filecap
+            stat /usr/bin/netcap
+            stat /usr/bin/pscap
+        - name: Test filecap functionality
+          runs: |
+            set -euo pipefail
+            # filecap without arguments lists files with capabilities (may produce empty output, but should exit 0)
+            filecap /
+        - name: Test pscap functionality
+          runs: |
+            set -euo pipefail
+            # pscap lists process capabilities (may produce empty output in container, but should exit 0)
+            pscap
+        - name: Test netcap functionality
+          runs: |
+            set -euo pipefail
+            # netcap lists network capabilities (may produce empty output in container, but should exit 0)
+            netcap
 
   - range: ""
     name: libcap-ng-dev
@@ -59,6 +96,7 @@ subpackages:
     description: libcap-ng dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -71,22 +109,6 @@ subpackages:
       pipeline:
         - uses: test/docs
 
-  - range: ""
-    name: libcap-ng-utils
-    pipeline:
-      - runs: |
-          mkdir -p ${{targets.subpkgdir}}/usr/bin
-          mv ${{targets.destdir}}/usr/bin ${{targets.subpkgdir}}/usr/bin
-    description: posix capabilities utils
-    # test added by a robot (binary)
-    test:
-      pipeline:
-        - runs: |
-            stat /usr/bin/bin/captest
-            stat /usr/bin/bin/filecap
-            stat /usr/bin/bin/netcap
-            stat /usr/bin/bin/pscap
-
 update:
   enabled: true
   github:
@@ -94,6 +116,38 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - libcap-ng-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
     - uses: test/no-docs
+    - name: Test libcap-ng compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <cap-ng.h>
+        #include <stdio.h>
+
+        int main() {
+            /* Get current process capabilities */
+            int ret = capng_get_caps_process();
+            if (ret < 0) {
+                fprintf(stderr, "Failed to get capabilities\n");
+                return 1;
+            }
+
+            /* Clear all capabilities */
+            capng_clear(CAPNG_SELECT_BOTH);
+
+            printf("libcap-ng is functional\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libcap-ng) test.c -o test $(pkg-config --libs libcap-ng)
+        ./test

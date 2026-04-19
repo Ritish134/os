@@ -1,28 +1,36 @@
 package:
   name: spicedb-operator
-  version: "1.22.0"
-  epoch: 0 # CVE-2025-61729
+  version: "1.24.0"
+  epoch: 0 # CVE-2026-32280
   description: Kubernetes operator for managing SpiceDB clusters
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "7"
+    memory: 15Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/authzed/spicedb-operator
       tag: v${{package.version}}
-      expected-commit: e62de3ff2305ae493d1146b6e6f399a1872f8954
+      expected-commit: 923143190139b441e6b47edf975d4dfb58120978
 
   - uses: go/bump
     with:
       deps: |-
         golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/bump
     with:
       deps: |-
         golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
       modroot: e2e
+      tidy: false
 
   - uses: go/build
     with:
@@ -40,11 +48,10 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/ko-app
-          ln -sf /usr/bin/spicedb-operator ${{targets.subpkgdir}}/ko-app/spicedb-operator
+          ln -sf ../usr/bin/spicedb-operator ${{targets.subpkgdir}}/ko-app/spicedb-operator
     test:
       pipeline:
-        - runs: |
-            test "$(readlink /ko-app/spicedb-operator)" = "/usr/bin/spicedb-operator"
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -65,6 +72,7 @@ test:
       POD_NAMESPACE: "default"
       DEBUG_PORT: "8090"
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Verify operator version and help
       runs: |
         spicedb-operator --help 2>&1 | grep -F "Available Commands:"
@@ -87,3 +95,8 @@ test:
           curl -fsSL "http://localhost:${DEBUG_PORT}/metrics" | grep -F -q "go_gc_duration_seconds"
           curl -fsSL "http://localhost:${DEBUG_PORT}/metrics" | grep -F -q "spicedb_operator_clusters_count"
           curl -fsSL "http://localhost:${DEBUG_PORT}/metrics" | grep -F "spicedb_operator_clusters_status_collector"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

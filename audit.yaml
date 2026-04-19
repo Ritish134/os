@@ -1,6 +1,6 @@
 package:
   name: audit
-  version: "4.1.2"
+  version: "4.1.4"
   epoch: 1
   description: User space tools for kernel auditing
   copyright:
@@ -9,6 +9,12 @@ package:
     runtime:
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "1"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -30,7 +36,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/linux-audit/audit-userspace
-      expected-commit: 4db9c700b0c8b24a8113bc00d98101228e7d0212
+      expected-commit: 07eea50408d28c953d4048dfef3da6556ce4b569
       tag: v${{package.version}}
 
   - uses: patch
@@ -60,8 +66,12 @@ pipeline:
       "
 
       # Append architecture-specific flag if needed
-      if [ "${build_arch}" = "aarch64" ]; then
-          _flags="$_flags --with_aarch64=yes"
+      if [ "${{build.arch}}" = "aarch64" ]; then
+          # Even though we don't build binaries for it, also enable 32-bit
+          # Arm support to ease reuse of audit rules between architectures.
+          # Rules for both 32-bit and 64-bit ABIs are common on x86_64,
+          # since most kernel configs there still support the 32-bit ABI.
+          _flags="$_flags --with-arm --with-aarch64"
       fi
 
       # Configure with the joined flags
@@ -120,8 +130,12 @@ subpackages:
     pipeline:
       - uses: split/static
     description: audit static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
     dependencies:
       runtime:
+        - libcap-ng-static
         - merged-usrsbin
         - wolfi-baselayout
 

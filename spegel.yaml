@@ -1,10 +1,16 @@
 package:
   name: spegel
   version: "0.6.0"
-  epoch: 0
+  epoch: 12 # CVE-2026-32280
   description: Stateless cluster local OCI registry mirror.
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
@@ -12,6 +18,23 @@ pipeline:
       repository: https://github.com/spegel-org/spegel
       tag: v${{package.version}}
       expected-commit: 6f02215fa3fc1d3bbdb11fa62dfa7c07dbe3b7c2
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: test/integration/containerd
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/pion/dtls/v3@v3.0.11
+        github.com/libp2p/go-libp2p@v0.47.0
+        github.com/quic-go/quic-go@v0.59.0
+        github.com/quic-go/webtransport-go@v0.10.0
+        google.golang.org/grpc@v1.79.3
+        github.com/ipld/go-ipld-prime@v0.22.0
 
   - uses: go/build
     with:
@@ -42,7 +65,7 @@ test:
     contents:
       packages:
         - containerd
-        - iptables-wrappers
+        - iptables-nft
         - curl
         - coreutils
         - distribution
@@ -181,3 +204,8 @@ test:
         pkill containerd || true
         rm -rf /etc/containerd/certs.d /etc/spegel /tmp/containerd.log || true
         echo "Spegel comprehensive test completed successfully"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

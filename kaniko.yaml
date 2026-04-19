@@ -1,7 +1,7 @@
 package:
   name: kaniko
-  version: "1.25.5"
-  epoch: 3 # GHSA-pwhc-rpq9-4c8w
+  version: "1.25.13"
+  epoch: 0 # GHSA-xmrv-pmrh-hhx2
   description: Build Container Images In Kubernetes
   copyright:
     - license: Apache-2.0
@@ -11,14 +11,27 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chainguard-forks/kaniko
       tag: v${{package.version}}
-      expected-commit: 0a913af7e0b3e84a90f53e234c18cae6cd00a1a8
+      expected-commit: d8b20785e0f6bf2a645828f5c15e484df98959ba
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/moby/buildkit@v0.28.1
+
+  # Fix docker/docker v28.5.2 + moby/go-archive v0.2.0 incompatibility.
+  # moby/buildkit@v0.28.1 bumps moby/go-archive from v0.1.0 to v0.2.0 which
+  # removed Compression/Uncompressed from the main package; docker/docker has
+  # not yet been updated to match.
+  - uses: patch
+    with:
+      patches: docker-go-archive-v0.2.0-compat.patch
 
   # patch to make kaniko more compatible with wolfi-baselayout.
   - uses: patch
@@ -41,8 +54,9 @@ subpackages:
           ldflags: -X github.com/chainguard-dev/kaniko/pkg/version.version=v${{package.version}}
     test:
       pipeline:
-        - runs: |
-            warmer --help
+        - uses: test/tw/help-check
+          with:
+            bins: warmer
 
   - name: kaniko-compat
     pipeline:
@@ -50,11 +64,15 @@ subpackages:
           # Symlink the binary from usr/bin to /kaniko/
           mkdir -p ${{targets.subpkgdir}}/kaniko/
           ln -sf /usr/bin/executor ${{targets.subpkgdir}}/kaniko/
-    # test added by a robot (compat)
     test:
+      environment:
+        contents:
+          packages:
+            - kaniko
       pipeline:
-        - runs: |
-            readlink -v /kaniko/executor
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
   - name: kaniko-warmer-compat
     pipeline:
@@ -62,11 +80,15 @@ subpackages:
           # Symlink the binary from usr/bin to /kaniko/
           mkdir -p ${{targets.subpkgdir}}/kaniko/
           ln -sf /usr/bin/warmer ${{targets.subpkgdir}}/kaniko/
-    # test added by a robot (compat)
     test:
+      environment:
+        contents:
+          packages:
+            - kaniko-warmer
       pipeline:
-        - runs: |
-            readlink -v /kaniko/warmer
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
 update:
   enabled: true
@@ -85,10 +107,13 @@ test:
         - docker
         - git
   pipeline:
-    - name: "Verify executor binary and version"
-      runs: |
-        executor --help
-        executor version | grep -q v${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: executor
+    - uses: test/tw/ver-check
+      with:
+        bins: executor
+        version: ${{package.version}}
     - name: "Test executor basic functionality"
       runs: |
         # Create a simple Dockerfile

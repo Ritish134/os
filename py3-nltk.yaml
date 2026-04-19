@@ -1,12 +1,15 @@
 package:
   name: py3-nltk
-  version: "3.9.2"
-  epoch: 0
+  version: "3.9.4"
+  epoch: 1 # fix top-level package test
   description: Natural Language Toolkit
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 6Gi
 
 vars:
   pypi-package: nltk
@@ -32,7 +35,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/nltk/nltk
-      expected-commit: 4e17ea390c526ec9cb9e5ef5eb3733ac118dbb8d
+      expected-commit: ad9c96ba00a16923ffe917eacf63f1707bfa2d08
       tag: ${{package.version}}
 
 subpackages:
@@ -65,6 +68,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -114,10 +118,6 @@ test:
       with:
         imports: |
           import ${{vars.import}}
-    - uses: python/import
-      with:
-        imports: |
-          import nltk
     - runs: |
         nltk --version
         nltk --help

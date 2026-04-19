@@ -1,10 +1,13 @@
 package:
   name: lzip
-  version: "1.25"
-  epoch: 1
+  version: "1.26"
+  epoch: 0 # go/wolfi-rsc/lzip
   description: Lzip is a lossless data compressor
   copyright:
     - license: GPL-2.0-or-later
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 environment:
   contents:
@@ -18,7 +21,7 @@ environment:
 pipeline:
   - uses: fetch
     with:
-      expected-sha256: 09418a6d8fb83f5113f5bd856e09703df5d37bae0308c668d0f346e3d3f0a56f
+      expected-sha256: 641cf30961525cbe3b340cc883436c8854e9f5032f459f444de4782b621e6572
       uri: https://download.savannah.gnu.org/releases/lzip/lzip-${{package.version}}.tar.gz
 
   - uses: autoconf/configure
@@ -50,4 +53,35 @@ test:
     - runs: |
         lzip --version
         lzip --help
+    - name: Test round-trip compression and decompression
+      runs: |
+        set -euo pipefail
+
+        # Create test input with known content
+        echo "The quick brown fox jumps over the lazy dog" > /tmp/input.txt
+
+        # Save a copy for comparison
+        cp /tmp/input.txt /tmp/original.txt
+
+        # Compress the file (lzip replaces the original with .lz)
+        lzip /tmp/input.txt
+
+        # Verify compressed file exists and original is gone
+        stat /tmp/input.txt.lz
+        if [ -f /tmp/input.txt ]; then
+          echo "FAIL: Original file should have been replaced by .lz file"
+          exit 1
+        fi
+
+        # Decompress the file (lzip -d replaces .lz with original)
+        lzip -d /tmp/input.txt.lz
+
+        # Verify decompressed file exists
+        stat /tmp/input.txt
+
+        # Verify content matches original
+        diff /tmp/original.txt /tmp/input.txt
+
+        # Test stdin/stdout pipe mode
+        echo "pipe test data" | lzip | lzip -d | grep -F "pipe test data"
     - uses: test/no-docs

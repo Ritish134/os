@@ -1,14 +1,18 @@
+#nolint:valid-pipeline-git-checkout-tag
 package:
   name: glibc
-  version: "2.42"
+  version: "2.43"
   # Every glibc update causes build disruption; always announce on #eng-psa
-  epoch: 4
+  epoch: 6
   description: "the GNU C library"
   copyright:
     - license: LGPL-2.1-or-later
+  cpe:
+    vendor: gnu
+    product: glibc
   resources:
-    cpu: 16
-    memory: 16Gi
+    cpu: "10"
+    memory: 11Gi
   dependencies:
     runtime:
       # This prevents Alpine users from being able to `apk add` any Wolfi packages
@@ -22,6 +26,9 @@ package:
       - merged-sbin
       - merged-usrsbin
       - wolfi-baselayout
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -45,46 +52,28 @@ environment:
   environment:
     CPPFLAGS: ""
 
+vars:
+  ########################### STOP!!! #############################
+  # Before updating the expected-commit, please ping @sergiodj or #
+  # someone from the OS team!                                     #
+  ########################### STOP!!! #############################
+  glibc-expected-commit: ce1013a197eb4a3b8ff2b07e0672f4d0b976ce7c
+  # We remove unnecessary charsets that could otherwise increase the
+  # attack surface of the package.
+  charsets-to-remove: "IBM1390 IBM1399"
+
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: d2097651cc57834dbfcaa102ddfacae0d86cfb66
+      expected-commit: ${{vars.glibc-expected-commit}}
       # sourceware.org often has clone issues, switch to mirror
       # recommended at https://sourceware.org/glibc/wiki/GlibcGit
       repository: https://gitlab.com/gnutools/glibc.git
-      tag: glibc-${{package.version}}
-      cherry-picks: |
-        release/2.42/master/bdea6c37197a3c9bd976911cce5f580dea1c28dd: Replace advisories directory with pointer file
-        release/2.42/master/3ec4dd77f648da031bba4d3fa14825e057b5a40d: NEWS: add new section
-        release/2.42/master/bc13db73937730401d592b33092db6df806d193e: inet-fortified: fix namespace violation (bug 33227)
-        release/2.42/master/fd18059c0fcf5568db3688da47403b663cf91c5e: stdlib: resolve a double lock init issue after fork [BZ #32994]
-        release/2.42/master/2fadee530155bae6682ab2965d6ff3a2fc9eced6: elf: Extract rtld_setup_phdr function from dl_main
-        release/2.42/master/5e298d2d937b6da06500478be956abeb24357e05: elf: Handle ld.so with LOAD segment gaps in _dl_find_object (bug 31943)
-        release/2.42/master/b38f3f60d5b157edcf4d8bd1fd3ed02d417889e0: nptl: Fix SYSCALL_CANCEL for return values larger than INT_MAX (BZ 33245)
-        release/2.42/master/9d5bf9c17db0f35268cd798660c8bbeea1f4071d: Delete temporary files in support_subprocess
-        release/2.42/master/9ec7a532ffdb9a6e0a4b220d7a694d6120701035: tst-fopen-threaded.c: Delete temporary file
-        release/2.42/master/41a77b78cff821007e3dd874619ebec7ce708c3d: tst-freopen4-main.c: Call support_capture_subprocess with chroot
-        release/2.42/master/c090b0cb1cde74aaeec01663dd55d6681dc92075: tst-env-setuid: Delete LD_DEBUG_OUTPUT output
-        release/2.42/master/e5754399b542640f3f69c5e2513c57a307656032: Revert "tst-freopen4-main.c: Call support_capture_subprocess with chroot"
-        release/2.42/master/c5476b7907d01207ede6bf57b26cef151b601f35: hurd: support: Fix running SGID tests
-        release/2.42/master/8a726b63047241c6dd4b55bf85eacd02244362a2: malloc: Remove redundant NULL check
-        release/2.42/master/c491dabd8a3de090d1ccb4589421a44e79c5b185: malloc: Fix MAX_TCACHE_SMALL_SIZE
-        release/2.42/master/a96a82c4a5efd3139e75cd11fd2a5554164dd5a0: malloc: Make sure tcache_key is odd enough
-        release/2.42/master/d7274d718e6f3655eabe311d4eb70fabb5ffa7ef: malloc: Fix checking for small negative values of tcache_key
-        release/2.42/master/8dbaecbe92ac7ab73b7d0aae84626af59131e41b: Use TLS initial-exec model for __libc_tsd_CTYPE_* thread variables [BZ #33234]
-        release/2.42/master/d0f72b96f2e91e1aa93f7e826c71f74078ada7d0: i386: Add GLIBC_ABI_GNU_TLS version [BZ #33221]
-        release/2.42/master/3970785bebcc3f1de4460072f3a041d178f64846: x86-64: Add GLIBC_ABI_GNU2_TLS version [BZ #33129]
-        release/2.42/master/7a8f3c6ee4b565a02da4ba0dad9aaeaeed4639ce: x86-64: Add GLIBC_ABI_DT_X86_64_PLT [BZ #33212]
-        release/2.42/master/e87844ec42b77363a499ea4da6c4a6ab85eba310: i386: Also add GLIBC_ABI_GNU2_TLS version [BZ #33129]
-        release/2.42/master/e34453cd6a8c592c325756ff3c7ac0afd3975cb4: AArch64: Fix SVE powf routine [BZ #33299]
-        release/2.42/master/1166170d95863e5a6f8121a5ca9d97713f524f49: libio: Define AT_RENAME_* with the same tokens as Linux
-        release/2.42/master/46b4e37c9e0619d0cf065ba207c29996b326a06f: nss: Group merge does not react to ERANGE during merge (bug 33361)
-        release/2.42/master/18fd689cdced8348e42991964557cddea0ba2dc5: nptl: Fix MADV_GUARD_INSTALL logic for thread without guard page (BZ 33356)
-        release/2.42/master/bf48b17a28066a54f172e0d63da9fc5dc60c6355: x86: Detect Intel Wildcat Lake Processor
-        release/2.42/master/ab8c1b5d62d7be2c3c23f535bea3d7fff19c53ae: x86: Detect Intel Nova Lake Processor
-        release/2.42/master/6de12fc9ad56bc19fa6fcbd8ee502f29b5170d47: aarch64: define macro for calling __libc_arm_za_disable
-        release/2.42/master/256030b9842a10b1f22851b1de0c119761417544: aarch64: clear ZA state of SME before clone and clone3 syscalls
-        release/2.42/master/71874f167aa5bb1538ff7e394beaacee28ebe65f: aarch64: tests for SME
+      branch: release/${{package.version}}/master
+
+  - uses: patch
+    with:
+      patches: 0001-Link-startup-files-without-package-metadata.patch
 
   - name: "Set up build directory"
     runs: |
@@ -201,6 +190,24 @@ subpackages:
       runtime:
         - merged-lib
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /usr/share/glibc-testresults/tests.sum
+        - name: Verify PASS/FAIL ratio in test result files is within acceptable threshold
+          runs: |
+            set -euo pipefail
+            MAX_FAIL_RATIO=0.02
+            fail_count=$(find /usr/share/glibc-testresults -type f -name "*.test-result" -exec grep "^FAIL:" '{}' ';' 2> /dev/null | wc -l)
+            pass_count=$(find /usr/share/glibc-testresults -type f -name "*.test-result" -exec grep "^PASS:" '{}' ';' 2> /dev/null | wc -l)
+            total=$((pass_count + fail_count))
+            echo "PASS: $pass_count, FAIL: $fail_count, TOTAL: $total"
+            [ "$total" -gt 0 ]
+            fail_ratio=$(awk "BEGIN { printf \"%.4f\", $fail_count / $total }")
+            echo "Fail ratio: $fail_ratio (max allowed: $MAX_FAIL_RATIO)"
+            awk "BEGIN { exit ($fail_ratio > $MAX_FAIL_RATIO) ? 1 : 0 }"
 
   - name: "ld-linux"
     description: "the GLIBC ELF interpreter"
@@ -238,6 +245,7 @@ subpackages:
       pipeline:
         - name: Check lib64 and apk audit locations of ld-linux
           runs: |
+            set -euo pipefail
             ld_linux_found=false
             for f in /lib64/ld-linux-*; do
               [ -e "$f" ] && ld_linux_found=true
@@ -277,6 +285,7 @@ subpackages:
             "$tmpdir"/test
         - name: Confirm that we do not ship/own /etc/ld.so.cache
           runs: |
+            set -euo pipefail
             if apk info -L "${{context.name}}" | grep '^etc/ld\.so\.cache$'; then
               exit 1
             fi
@@ -298,21 +307,47 @@ subpackages:
         - merged-sbin
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
 
   - name: "glibc-iconv"
     description: "GLIBC iconv tables"
     pipeline:
       - runs: |
+          # Cleanup unnecessary character sets
+          for ch in ${{vars.charsets-to-remove}}; do
+            rm -v "${{targets.destdir}}/usr/lib/gconv/${ch}.so"
+          done
+
           mkdir -p "${{targets.subpkgdir}}"/usr/lib
           mv "${{targets.destdir}}"/usr/lib/gconv "${{targets.subpkgdir}}"/usr/lib/
 
           mkdir -p "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/bin/iconvconfig "${{targets.subpkgdir}}"/usr/bin
+          mv "${{targets.destdir}}"/usr/bin/iconv "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            iconvconfig --version
-            iconvconfig --help
+        - uses: test/tw/help-check
+          with:
+            bins: |
+              iconvconfig
+              iconv
+        - uses: test/tw/ver-check
+          with:
+            bins: |
+              iconvconfig
+              iconv
+            version: ${{package.version}}
+        - name: Check if unnecessary charsets are not being shipped
+          runs: |
+            set -euo pipefail
+            for ch in ${{vars.charsets-to-remove}}; do
+              if iconv -f "${ch}" -t UTF-8 /dev/null ; then
+                echo "Charset $ch is available while it shouldn't be."
+                exit 1
+              fi
+            done
     dependencies:
       runtime:
         - merged-lib
@@ -333,6 +368,11 @@ subpackages:
         - merged-sbin
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: /usr/share/locale/
 
   - name: "tzutils"
     description: "Timezone utilities"
@@ -344,13 +384,19 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/zic "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            tzselect --version
-            tzselect --help
-            zdump --version
-            zdump --help
-            zic --version
-            zic --help
+        - uses: test/tw/help-check
+          with:
+            bins: |
+              tzselect
+              zdump
+              zic
+        - uses: test/tw/ver-check
+          with:
+            bins: |
+              tzselect
+              zdump
+              zic
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -365,6 +411,31 @@ subpackages:
       runtime:
         - bash
         - glibc=${{package.full-version}}
+        - posix-libc-utils-bin=${{package.full-version}}
+        - merged-lib
+        - merged-sbin
+        - merged-usrsbin
+        - wolfi-baselayout
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}"/usr/bin
+          mv "${{targets.destdir}}"/usr/bin/ldd "${{targets.subpkgdir}}"/usr/bin
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: ldd
+        - uses: test/tw/ver-check
+          with:
+            bins: ldd
+
+  # splitting posix-libc-utils binaries that don't require bash into their own subpackage
+  # lets us use these binaries without adding an unnecessary bash dependency
+  - name: "posix-libc-utils-bin"
+    description: "POSIX XCU utilities included with the C library (excluding ldd)"
+    dependencies:
+      runtime:
+        - glibc=${{package.full-version}}
         - merged-lib
         - merged-sbin
         - merged-usrsbin
@@ -375,28 +446,27 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/gencat "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/bin/getconf "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/bin/getent "${{targets.subpkgdir}}"/usr/bin
-          mv "${{targets.destdir}}"/usr/bin/iconv "${{targets.subpkgdir}}"/usr/bin
-          mv "${{targets.destdir}}"/usr/bin/ldd "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/bin/locale "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/bin/pldd "${{targets.subpkgdir}}"/usr/bin
           mv "${{targets.destdir}}"/usr/libexec "${{targets.subpkgdir}}"/usr
     test:
       pipeline:
-        - runs: |
-            gencat --version
-            gencat --help
-            getconf --version
-            getconf --help
-            getent --version
-            getent --help
-            iconv --version
-            iconv --help
-            ldd --version
-            ldd --help
-            locale --version
-            locale --help
-            pldd --version
-            pldd --help
+        - uses: test/tw/help-check
+          with:
+            bins: |
+              gencat
+              getconf
+              getent
+              locale
+              pldd
+        - uses: test/tw/ver-check
+          with:
+            bins: |
+              gencat
+              getconf
+              getent
+              locale
+              pldd
 
   - name: "localedef"
     description: "Tool for defining GLIBC locales"
@@ -406,9 +476,13 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/localedef "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            localedef --version
-            localedef --help
+        - uses: test/tw/help-check
+          with:
+            bins: localedef
+        - uses: test/tw/ver-check
+          with:
+            bins: localedef
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -428,10 +502,14 @@ subpackages:
           mv "${{targets.destdir}}"/usr/lib/audit/* "${{targets.subpkgdir}}"/usr/lib/audit/
     test:
       pipeline:
-        - runs: |
-            sotruss --version
-            sotruss --help
         - uses: test/tw/ldd-check
+        - uses: test/tw/help-check
+          with:
+            bins: sotruss
+        - uses: test/tw/ver-check
+          with:
+            bins: sotruss
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -448,9 +526,13 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/nscd "${{targets.subpkgdir}}"/usr/bin/
     test:
       pipeline:
-        - runs: |
-            nscd --version
-            nscd --help
+        - uses: test/tw/help-check
+          with:
+            bins: nscd
+        - uses: test/tw/ver-check
+          with:
+            bins: nscd
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -472,10 +554,14 @@ subpackages:
           mv "${{targets.destdir}}"/var/db "${{targets.subpkgdir}}"/var
     test:
       pipeline:
-        - runs: |
-            makedb --version
-            makedb --help
         - uses: test/tw/ldd-check
+        - uses: test/tw/help-check
+          with:
+            bins: makedb
+        - uses: test/tw/ver-check
+          with:
+            bins: makedb
+            version: ${{package.version}}
     dependencies:
       runtime:
         - merged-lib
@@ -510,9 +596,13 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/pcprofiledump "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            pcprofiledump --version
-            pcprofiledump --help
+        - uses: test/tw/help-check
+          with:
+            bins: pcprofiledump
+        - uses: test/tw/ver-check
+          with:
+            bins: pcprofiledump
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -531,11 +621,17 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/sprof "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            sprof --version
-            sprof --help
-            xtrace --version
-            xtrace --help
+        - uses: test/tw/help-check
+          with:
+            bins: |
+              sprof
+              xtrace
+        - uses: test/tw/ver-check
+          with:
+            bins: |
+              sprof
+              xtrace
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -552,9 +648,13 @@ subpackages:
           mv "${{targets.destdir}}"/usr/bin/sln "${{targets.subpkgdir}}"/usr/bin
     test:
       pipeline:
-        - runs: |
-            sln --version
-            sln --help
+        - uses: test/tw/help-check
+          with:
+            bins: sln
+        - uses: test/tw/ver-check
+          with:
+            bins: sln
+            version: ${{package.version}}
     dependencies:
       runtime:
         - glibc=${{package.full-version}}
@@ -595,6 +695,11 @@ subpackages:
         - merged-sbin
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: /usr/lib/locale/C.utf8
 
   - range: locales-main
     name: "glibc-locale-${{range.key}}"
@@ -623,7 +728,7 @@ subpackages:
             - posix-libc-utils
       pipeline:
         - runs: |
-            set +x
+            set -euo pipefail
             pkg=glibc-locale-${{range.key}}
             out=$(locale --all-locales) || {
               echo "FAIL: locale --all-locales failed for $pkg"
@@ -660,7 +765,7 @@ subpackages:
             - posix-libc-utils
       pipeline:
         - runs: |
-            set +x
+            set -euo pipefail
             pkg=glibc-locale-extra
             out=$(locale --all-locales) || {
               echo "FAIL: locale --all-locales failed for $pkg"
@@ -708,9 +813,10 @@ test:
         - glibc-dev
   pipeline:
     - runs: |
+        set -euo pipefail
         # Ensure locales are excluded from glibc
         cd /usr/lib/locale
-        locales=$(ls | grep -v C.utf8 || true)
+        locales=$(ls | grep -v C.utf8) || locales=""
 
         if [[ -n "${locales}" ]]; then
           for locale in ${locales}; do
@@ -718,13 +824,21 @@ test:
           done
           exit 1
         fi
-        ldconfig --version
-        ldconfig --help
-        ld.so --version
-        ld.so --help
     - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          ldconfig
+          ld.so
+    - uses: test/tw/ver-check
+      with:
+        bins: |
+          ldconfig
+          ld.so
+        version: ${{package.version}}
     - name: Confirm that we're still compatible with current gcc
       runs: |
+        set -euo pipefail
         # This was a problem due to some legacy fix-includes in gcc that interfered
         # with new glibc private symbols.  Let's make sure that doesn't break again
         cat <<EOF >gcc_test.cc
@@ -736,23 +850,38 @@ test:
         }
         EOF
         g++ -o test_build gcc_test.cc
+        # Test that glibc startup files do not leak into the binary
+        if [ -n "$(readelf --notes test_build | grep -F '"name":"glibc"')" ]; then
+          readelf --notes test_build
+          echo glibc package note detected in a shared linked binary
+          exit 1
+        fi
     - name: Verify apk bootstrap works
       runs: |
+        set -euo pipefail
+        check_bootstrap_log() {
+          local log="$1"
+          cat "$log"
+          # Filter out known-ok "updating directory permissions" errors,
+          # then fail if any real ERROR: lines remain.
+          if grep -e "ERROR:" "$log" | grep -v "updating directory permissions" > errors.log; then
+            echo "Unexpected errors found in bootstrap log:"
+            cat errors.log
+            exit 1
+          fi
+        }
+
         # Verify that glibc + bash-binsh bootstrap works
         mkdir -p /tmp/glibc-bash/etc/apk
         cp -r /etc/apk/repositories /etc/apk/keys /tmp/glibc-bash/etc/apk
-        apk add --initdb --root /tmp/glibc-bash glibc bash-binsh &> bootstrap.log || true
-        cat bootstrap.log
-        grep -e ERROR: bootstrap.log | grep -v 'updating directory permissions' >errors.log || true
-        grep -e ERROR: errors.log && exit 1
+        apk add --initdb --root /tmp/glibc-bash glibc bash-binsh &> bootstrap.log || :
+        check_bootstrap_log bootstrap.log
 
         # Verify that glibc + busybox bootstrap works
         mkdir -p /tmp/glibc-busybox/etc/apk
         cp -r /etc/apk/repositories /etc/apk/keys /tmp/glibc-busybox/etc/apk
-        apk add --initdb --root /tmp/glibc-busybox glibc busybox &> bootstrap.log || true
-        cat bootstrap.log
-        grep -e ERROR: bootstrap.log | grep -v 'updating directory permissions' > errors.log || true
-        grep -e ERROR: errors.log && exit 1
+        apk add --initdb --root /tmp/glibc-busybox glibc busybox &> bootstrap.log || :
+        check_bootstrap_log bootstrap.log
     - name: Verify that frame unwinding doesn't crash (when glibc is compiled with hardening)
       runs: |
         # This is the minimal reproducer of the glibc breakage we
@@ -776,9 +905,7 @@ test:
 
 update:
   enabled: true
-  ignore-regex-patterns:
-    # glibc creates tags ending with ".9000" for their development
-    # brances.  We have to ignore those.
-    - \.9000$
-  git:
-    strip-prefix: glibc-
+  git: {}
+  schedule:
+    period: weekly
+    reason: We are building from the release branch, which isn't tagged.

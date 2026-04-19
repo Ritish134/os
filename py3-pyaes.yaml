@@ -1,12 +1,15 @@
 package:
   name: py3-pyaes
   version: 1.6.1
-  epoch: 6
+  epoch: 8 # go/wolfi-rsc/py3-pyaes
   description: Pure-Python Implementation of the AES block-cipher and common modes of operation
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 vars:
   pypi-package: pyaes
@@ -47,6 +50,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

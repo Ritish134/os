@@ -1,10 +1,13 @@
 package:
   name: python-as-wrapper
   version: 0.1.0
-  epoch: 0
+  epoch: 5 # go/wolfi-rsc/python-as-wrapper
   description: Shell script wrapper to exec python3.XX
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 data:
   - name: py-versions
@@ -92,12 +95,28 @@ subpackages:
     pipeline:
       - runs: |
           install -D -m755 "-t${{targets.contextdir}}/usr/bin" test-*
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
 
   - name: check-shbang
     description: simple script to check shbang values
     pipeline:
       - runs: |
           install -D -m755 "-t${{targets.contextdir}}/usr/bin" check-shbang
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: check-shbang
+            expect-contains: Usage
+        - runs: |
+            echo '#!/usr/bin/python3' > /tmp/test.py
+            check-shbang /usr/bin/python3 /tmp/test.py
+
+test:
+  pipeline:
+    - uses: test/tw/emptypackage
 
 update:
   enabled: false

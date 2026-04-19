@@ -7,3 +7,9 @@ packages:
     version: 2.3.0
   - name: js-sys
     version: 0.3.77
+  - name: time
+    version: 0.3.47
+  - name: tar
+    version: 0.4.45
+  - name: rustls-webpki
+    version: 0.103.12

@@ -1,6 +1,6 @@
 package:
   name: ruby3.3-mime-types-data
-  version: "3.2025.0924"
+  version: "3.2026.0414"
   epoch: 0
   description: MIME Type registry data
   copyright:
@@ -21,7 +21,7 @@ pipeline:
     with:
       repository: https://github.com/mime-types/mime-types-data.git
       tag: v${{package.version}}
-      expected-commit: 85ac1a531d68d453658222cd85587865a316198b
+      expected-commit: d237ee45d5fcbcf05aa860c5682f9693de92ecd8
 
   - uses: ruby/build
     with:
@@ -39,8 +39,7 @@ vars:
 
 test:
   pipeline:
-    - runs: |
-        ruby -e "require 'mime-types-data'"
+    - uses: test/tw/gem-check
 
 update:
   enabled: true

@@ -1,7 +1,7 @@
 package:
   name: k8ssandra-operator
-  version: "1.29.0"
-  epoch: 2 # CVE-2025-61729
+  version: "1.31.0"
+  epoch: 1 # CVE-2026-32280
   description: The Kubernetes operator for K8ssandra
   copyright:
     - license: Apache-2.0
@@ -11,12 +11,18 @@ pipeline:
     with:
       repository: https://github.com/k8ssandra/k8ssandra-operator
       tag: v${{package.version}}
-      expected-commit: 42e1e75b654f03824432115192d7c753752ec086
+      expected-commit: 6f2eeb0dd15051b46a92d76f22aa75b34587e053
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: .
       output: manager
+      go-package: go-1.25
       ldflags: |
         -X "main.version=${{package.version}}"
         -X "main.commit=$(git rev-parse HEAD)"
@@ -28,10 +34,14 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"
-          ln -sf /usr/bin/manager ${{targets.subpkgdir}}/manager
+          ln -sf usr/bin/manager ${{targets.subpkgdir}}/manager
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: test -L /manager && test "$(readlink /manager)" = "/usr/bin/manager"
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -53,8 +63,9 @@ test:
       WATCH_NAMESPACE: default
   pipeline:
     - uses: test/tw/ldd-check
-    - runs: |
-        ${{vars.bin-name}} --help
+    - uses: test/tw/help-check
+      with:
+        bins: ${{vars.bin-name}}
     - uses: test/kwok/cluster
       with:
         serviceaccount: true
@@ -62,6 +73,9 @@ test:
       uses: test/daemon-check-output
       with:
         setup: |
+          kubectl create clusterrolebinding test-admin \
+            --clusterrole=cluster-admin \
+            --serviceaccount=default:default
           mkdir -p /tmp/k8s-webhook-server/serving-certs
           openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
             -keyout /tmp/k8s-webhook-server/serving-certs/tls.key \
@@ -69,6 +83,16 @@ test:
             -subj "/CN=k8ssandra-operator-webhook-service.default.svc" \
             -addext "subjectAltName=DNS:k8ssandra-operator-webhook-service.default.svc"
           kubectl apply --server-side=true -f https://raw.githubusercontent.com/k8ssandra/k8ssandra-operator/v${{package.version}}/charts/k8ssandra-operator/crds/k8ssandra-operator-crds.yaml
+          kubectl create configmap image-config \
+            --from-literal=image_config.yaml="$(cat <<'IMGCFG'
+          apiVersion: config.k8ssandra.io/v1beta2
+          kind: ImageConfig
+          metadata:
+            name: image-config
+          defaults: {}
+          IMGCFG
+          )"
+          kubectl label configmap image-config k8ssandra.io/config=image
           sleep 1
         start: ${{vars.bin-name}} --metrics-bind-address ":8080" --health-probe-bind-address ":8081"
         timeout: 30
@@ -78,3 +102,8 @@ test:
         post: |
           curl --silent --fail http://127.0.0.1:8080/metrics
           curl --silent --fail http://127.0.0.1:8081/healthz
+
+environment:
+  contents:
+    packages:
+      - go-1.25

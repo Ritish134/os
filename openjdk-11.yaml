@@ -1,7 +1,7 @@
 package:
   name: openjdk-11
-  version: "11.0.29"
-  epoch: 1
+  version: "11.0.30"
+  epoch: 6
   description:
   copyright:
     - license: GPL-2.0-with-classpath-exception
@@ -21,6 +21,9 @@ package:
       - libxtst
       - ttf-dejavu
       - zlib
+  resources:
+    cpu: "25"
+    memory: 25Gi
 
 environment:
   contents:
@@ -56,11 +59,7 @@ pipeline:
     with:
       repository: https://github.com/openjdk/jdk11u.git
       tag: jdk-${{package.version}}-ga
-      expected-commit: d3b1c2be9e87aad07cac29d94679130fe5807c17
-
-  - uses: patch
-    with:
-      patches: fix-build-with-glibc-2.42.patch
+      expected-commit: 5d80a0e0571e163077356904d7810fcc8d9b26f0
 
   - runs: chmod +x configure
 
@@ -79,6 +78,7 @@ pipeline:
         --with-vendor-url=https://wolfi.dev \
         --with-vendor-bug-url=https://github.com/wolfi-dev/os/issues \
         --with-version-opt="wolfi-r${{package.epoch}}" \
+        --with-vendor-version-string="${{package.name}}-${{package.full-version}}" \
         --disable-warnings-as-errors \
         --disable-precompiled-headers \
         --enable-dtrace=no \
@@ -121,6 +121,9 @@ subpackages:
     description: "OpenJDK 11 Java Debug Symbols"
     pipeline:
       - uses: split/debug
+    test:
+      pipeline:
+        - uses: test/tw/debugpackage
     dependencies:
       runtime:
         - openjdk-11
@@ -187,6 +190,11 @@ subpackages:
           mkdir -p "${{targets.subpkgdir}}"/usr/lib/jvm/java-11-openjdk
           mv "${{targets.destdir}}"/usr/lib/jvm/java-11-openjdk/man \
              "${{targets.subpkgdir}}"/usr/lib/jvm/java-11-openjdk
+    test:
+      pipeline:
+        - uses: test/tw/docs
+          with:
+            path-prefix: /usr/lib/jvm/java-11-openjdk
 
   - name: "openjdk-11-demos"
     description: "OpenJDK 11 Demos"
@@ -195,6 +203,9 @@ subpackages:
           mkdir -p "${{targets.subpkgdir}}"/usr/lib/jvm/java-11-openjdk
           mv "${{targets.destdir}}"/usr/lib/jvm/java-11-openjdk/demo \
              "${{targets.subpkgdir}}"/usr/lib/jvm/java-11-openjdk
+    test:
+      pipeline:
+        - uses: test/tw/byproductpackage
 
   - name: "openjdk-11-default-jvm"
     description: "Use the openjdk-11 JVM as the default JVM"
@@ -273,13 +284,15 @@ test:
     # Test a basic Hello World
     - working-directory: basic
       runs: |
+        set -euo pipefail
         javac HelloWorld.java
-        java HelloWorld | grep -qi "Hello World!"
+        java HelloWorld | grep -F "Hello World!"
     # Test a basic HTTP connection
     - working-directory: basic
       runs: |
+        set -euo pipefail
         javac RequestTest.java
-        java RequestTest | grep -qi "Successfully connected to example.org"
+        java RequestTest | grep -F "Successfully connected to example.org"
     # Test modules
     - working-directory: advanced/module-project
       runs: |

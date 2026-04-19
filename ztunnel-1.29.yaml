@@ -1,0 +1,108 @@
+package:
+  name: ztunnel-1.29
+  version: "1.29.1"
+  epoch: 9 # GHSA-965h-392x-2mh5
+  description: The `ztunnel` component of istio ambient mesh.
+  copyright:
+    - license: Apache-2.0
+  dependencies:
+    provides:
+      - ztunnel=${{package.full-version}}
+    runtime:
+      - ca-certificates-bundle
+      - iptables-nft
+      - libmnl
+      - libnetfilter_conntrack
+      - libnfnetlink
+  resources:
+    cpu: "9"
+    memory: 16Gi
+
+environment:
+  contents:
+    packages:
+      - build-base
+      - busybox
+      - ca-certificates-bundle
+      - cargo-auditable
+      - clang-${{vars.clang-version}}
+      - cmake
+      - protoc
+      - rust-1.90
+
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/istio/ztunnel
+      tag: ${{package.version}}
+      expected-commit: 61888401e717c9d853eb04bfd002e2808e8af8e4
+
+  - name: Downgrade pingora-pool to 0.4.0
+    runs: |
+      # This is necessary because we need to bump lru to version 0.16,
+      # and pingora-pool comes locked at version 0.6.0, which depends
+      # on lru version 0.14.  While the ideal solution here would be to
+      # bump pingora-pool to version 0.7.0, ztunnel 1.29 doesn't build
+      # with it.  Here's a summary of the situation:
+      #
+      # - pingora-pool 0.7.0 => ztunnel fails to build.
+      # - pingora-pool 0.6.0 => locked to lru 0.14.
+      # - pingora-pool 0.5.0 => likewise.
+      # - pingora-pool 0.4.0 => accepts "lru=0"
+      #
+      # This means that we have to downgrade to pingora-pool 0.4.0 to
+      # be able to upgrade to lru 0.16.
+      cargo add pingora-pool@'=0.4.0'
+
+  - uses: rust/cargobump
+
+  - runs: |
+      export ZTUNNEL_BUILD_buildStatus=clean
+      export ZTUNNEL_BUILD_buildGitRevision=$(git rev-parse HEAD)
+      export ZTUNNEL_BUILD_buildVersion=$(git describe --tags --abbrev=0)
+      cargo auditable build --release --bin ztunnel
+      mkdir -p ${{targets.destdir}}/usr/bin
+      cp out/rust/release/ztunnel ${{targets.destdir}}/usr/bin/ztunnel
+
+  - uses: strip
+
+subpackages:
+  - name: ${{package.name}}-compat
+    description: Compat package for ztunnel
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.contextdir}}"/usr/local/bin
+          ln -sf /usr/bin/ztunnel "${{targets.contextdir}}"/usr/local/bin/ztunnel
+    dependencies:
+      provides:
+        - ztunnel-compat=${{package.full-version}}
+    test:
+      pipeline:
+        - uses: test/virtualpackage
+          with:
+            virtual-pkg-name: ztunnel-compat
+            real-pkg-name: ${{subpkg.name}}
+
+update:
+  enabled: true
+  ignore-regex-patterns:
+    - '-rc'
+    - '-beta'
+  github:
+    identifier: istio/ztunnel
+    tag-filter-prefix: 1.29.
+    use-tag: true
+
+test:
+  pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: ztunnel
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: ztunnel
+
+vars:
+  clang-version: 22

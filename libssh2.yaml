@@ -1,10 +1,13 @@
 package:
   name: libssh2
   version: 1.11.1
-  epoch: 1
+  epoch: 4
   description: "A library implementing the SSH2 protocol as defined by Internet Drafts"
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -14,7 +17,7 @@ environment:
       - busybox
       - ca-certificates-bundle
       - libtool
-      - openssl-dev
+      - openssl-hardened-dev
       - wolfi-baselayout
 
 pipeline:
@@ -41,6 +44,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -63,5 +67,32 @@ update:
     strip-prefix: libssh2-
 
 test:
+  environment:
+    contents:
+      packages:
+        - libssh2-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test libssh2 compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <libssh2.h>
+        #include <stdio.h>
+        int main() {
+            int rc = libssh2_init(0);
+            if (rc != 0) {
+                fprintf(stderr, "libssh2_init failed: %d\n", rc);
+                return 1;
+            }
+            printf("libssh2 initialized successfully\n");
+            libssh2_exit();
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libssh2) test.c -o test $(pkg-config --libs libssh2)
+        ./test

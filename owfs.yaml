@@ -1,10 +1,13 @@
 package:
   name: owfs
   version: 3.2.4
-  epoch: 2
+  epoch: 6 # go/wolfi-rsc/owfs
   description: OWFS — the one-wire filesystem
   copyright:
     - license: GPL-2.0-only
+  resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
@@ -57,6 +60,7 @@ subpackages:
     description: owfs dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -64,6 +68,9 @@ subpackages:
     pipeline:
       - uses: split/manpages
     description: owfs manpages
+    test:
+      pipeline:
+        - uses: test/tw/docs
 
 update:
   enabled: true

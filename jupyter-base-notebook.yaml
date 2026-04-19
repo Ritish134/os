@@ -1,13 +1,16 @@
 package:
   name: jupyter-base-notebook
-  version: "7.5.1"
-  epoch: 0 # GHSA-2xpw-w6gg-jr37 and GHSA-gm62-xv2j-4w53
+  version: "7.5.5"
+  epoch: 3 # add set -euo pipefail to test block
   description: Jupyter Notebook
   dependencies:
     runtime:
       - python-3.12
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 environment:
   contents:
@@ -34,8 +37,8 @@ pipeline:
       # CVE-2025-47287
       pip install --upgrade tornado==6.5.0
 
-      # Remediate GHSA-48p4-8xcf-vxj5, GHSA-pq67-6m6q-mj2v, GHSA-2xpw-w6gg-jr37 and GHSA-gm62-xv2j-4w53
-      pip install --upgrade urllib3==2.6.0
+      # Remediate GHSA-38jv-5279-wg99
+      pip install --upgrade urllib3==2.6.3
 
       jupyter server --generate-config
       # The default config is written to the user's home directory.
@@ -59,6 +62,7 @@ test:
       JUPYTERHUB_SERVICE_URL: "127.0.0.1:8000"
   pipeline:
     - runs: |
+        set -euo pipefail
         pip list | grep jupyterlab
         pip list | grep nbclassic
         pip list | grep notebook
@@ -106,7 +110,7 @@ test:
     - name: Run and test jupyter server
       uses: test/daemon-check-output
       with:
-        start: jupyter server >/dev/null 2>&1
+        start: /usr/bin/jupyter server
         timeout: 30
         expected_output: |
           extension was successfully linked
@@ -115,9 +119,9 @@ test:
       uses: test/daemon-check-output
       with:
         setup: |
-          jupyterhub --ip 127.0.0.1 >/dev/null 2>&1 &
+          /usr/bin/jupyterhub --ip 127.0.0.1 >/dev/null 2>&1 &
           sleep 3
-        start: jupyterhub-singleuser --allow-root
+        start: /usr/bin/jupyterhub-singleuser --allow-root
         timeout: 30
         expected_output: |
           nbclassic | extension was successfully loaded.

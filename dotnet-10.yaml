@@ -1,7 +1,7 @@
 package:
   name: dotnet-10
-  version: "10.0.100"
-  epoch: 1
+  version: "10.0.106"
+  epoch: 0
   description: ".NET ${{vars.major-version}} host"
   copyright:
     - license: MIT
@@ -16,7 +16,8 @@ package:
       - dotnet=${{package.full-version}}
 
 vars:
-  clang-version: 20
+  bootstrap: 'true'
+  clang-version: '21'
 
 var-transforms:
   - from: ${{package.version}}
@@ -36,14 +37,13 @@ environment:
       - clang-${{vars.clang-version}}
       - cmake
       - curl
-      - dotnet-bootstrap-${{vars.major-version}}
       - file
       - icu-dev
       - krb5-dev
       - libunwind-dev
       - lttng-ust-dev
       - make
-      - openssl-dev
+      - openssl-hardened-dev
       - python3
       - rapidjson-dev
       - zlib-dev
@@ -53,16 +53,13 @@ pipeline:
     with:
       repository: https://github.com/dotnet/dotnet
       tag: v${{package.version}}
-      expected-commit: b0f34d51fccc69fd334253924abd8d6853fad7aa
-      cherry-picks: |
-        main/77ee357638bcd8fa66a1c16fa588dcd5818068d2: source-build-toolset-init.sh: fix tempDir no longer defined when EXIT trap is executed.
+      expected-commit: 47fb725acf5d7094af51aebbb5b7e5c44a3b2a77
 
   - runs: |
       # Setup bootstrap .NET SDK
-      mkdir -p prereqs/packages/archive
-      ln -sf /usr/share/dotnet-bootstrap/dotnet .dotnet
-      ln -sf /usr/share/dotnet-bootstrap/Private.SourceBuilt.Artifacts.Bootstrap.tar.gz \
-        prereqs/packages/archive/Private.SourceBuilt.Artifacts.Bootstrap.tar.gz
+      if [ ${{vars.bootstrap}} = "true" ]; then
+        ./prep-source-build.sh
+      fi
 
       if [ ${{build.arch}} = "aarch64" ]; then
         # Dotnet does not have support for PAC/BTI which Axion uses
@@ -70,7 +67,7 @@ pipeline:
         # EXTRA_${FLAG} is supposed to work, but it doesn't
         # so directly override the values which is supposedly a no-no
         # See also: https://github.com/dotnet/runtime/issues/61859
-        export CFLAGS="-mbranch-protection=none"
+        export CFLAGS="$CFLAGS -mbranch-protection=none"
         export CXXFLAGS="-mbranch-protection=none"
       fi
 
@@ -81,7 +78,6 @@ pipeline:
       ./build.sh \
         --clean-while-building \
         --source-only \
-        --branding rtm \
         -- \
         /v:minimal \
         /p:LogVerbosity=minimal \
@@ -145,6 +141,9 @@ subpackages:
         - dotnet-${{vars.major-version}}-runtime=${{package.full-version}}
         - libexpat1
         - libbrotlidec1
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - name: dotnet-${{vars.major-version}}-targeting-pack
     description: "The .NET ${{vars.major-version}} Core targeting pack"
@@ -152,6 +151,13 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.contextdir}}/usr/share/dotnet/packs
           mv ${{targets.destdir}}/usr/share/dotnet/packs/Microsoft.NETCore.App.* ${{targets.contextdir}}/usr/share/dotnet/packs/
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /usr/share/dotnet/packs
+            name: "Microsoft.NETCore.App.*"
+            type: "d"
 
   - name: aspnet-${{vars.major-version}}-targeting-pack
     description: "The ASP.NET ${{vars.major-version}} targeting pack"
@@ -162,6 +168,13 @@ subpackages:
     dependencies:
       runtime:
         - dotnet-${{vars.major-version}}-targeting-pack
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /usr/share/dotnet/packs
+            name: "Microsoft.AspNetCore.App.*"
+            type: "d"
 
   - name: dotnet-${{vars.major-version}}-aot
     description: "Ahead-of-Time (AOT) support for the .NET ${{vars.major-version}} SDK"
@@ -172,14 +185,19 @@ subpackages:
     dependencies:
       runtime:
         - dotnet-${{vars.major-version}}-targeting-pack=${{package.full-version}}
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /usr/share/dotnet/packs
+            name: "runtime.*.Microsoft.DotNet.ILCompiler"
+            type: "d"
 
 update:
   enabled: true
-  ignore-regex-patterns:
-    - 10\.0\.101
   git:
     strip-prefix: v
-    tag-filter-prefix: "v10"
+    tag-filter-prefix: "v10.0.1"
 
 test:
   environment:

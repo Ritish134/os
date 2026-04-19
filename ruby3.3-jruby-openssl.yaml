@@ -1,8 +1,8 @@
 # Generated from https://github.com/jruby/jruby-openssl
 package:
   name: ruby3.3-jruby-openssl
-  version: "0.15.5"
-  epoch: 0
+  version: "0.15.7"
+  epoch: 0 # go/wolfi-rsc/ruby3.3-jruby-openssl
   description: JRuby-OpenSSL is an add-on gem for JRuby that emulates the Ruby OpenSSL native library.
   copyright:
     - license: GPL-2.0-or-later AND EPL-1.0 AND LGPL-2.1-or-later
@@ -10,6 +10,9 @@ package:
     runtime:
       - openjdk-11-default-jvm
       - ruby${{vars.rubyMM}}-bouncy-castle-java
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 environment:
   contents:
@@ -24,7 +27,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 889bd6dc6b749adbf5d70733cdf04291931193a9
+      expected-commit: 9c73c713aac90a16e8d79f171a9c6f8a2136b51e
       repository: https://github.com/jruby/jruby-openssl
       tag: v${{package.version}}
 

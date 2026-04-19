@@ -1,7 +1,7 @@
 package:
   name: blob-csi-1.27
-  version: "1.27.1"
-  epoch: 0 # GHSA-r6j8-c6r2-37rr
+  version: "1.27.4"
+  epoch: 0 # GHSA-hfvc-g4fc-pqhx
   description: Azure Blob Storage CSI driver
   copyright:
     - license: Apache-2.0
@@ -22,8 +22,9 @@ environment:
       - conntrack-tools
       - curl
       - fuse3
+      - go-1.25
       - iproute2
-      - iptables-wrappers
+      - iptables-nft
       - kmod
       - procps
       - util-linux
@@ -31,7 +32,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 6aab1282b1384c38b6861e59476c5e4299d00320
+      expected-commit: 3bec9870f2f5dcb10bf7cc9b33fa66304a4c36de
       repository: https://github.com/kubernetes-sigs/blob-csi-driver
       tag: v${{package.version}}
 
@@ -90,7 +91,7 @@ subpackages:
         - dash-binsh
         - e2fsprogs
         - iproute2
-        - iptables-wrappers
+        - iptables-nft
         - kmod
         - mount
         - netcat-openbsd

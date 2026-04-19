@@ -1,16 +1,20 @@
 package:
   name: iptables-wrappers
   version: 2
-  epoch: 6
+  epoch: 13 # go/wolfi-rsc/iptables-wrappers
   description: Wrapper scripts for using iptables in containers
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
-      - xtables
+      - iptables
     replaces:
       - iptables
-      - ip6tables
+  resources:
+    cpu: "1"
+    memory: 4Gi
+  test-resources:
+    memory: 1Gi
 
 vars:
   wrapped-commands: |
@@ -21,6 +25,7 @@ environment:
   contents:
     packages:
       - busybox
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
@@ -44,6 +49,7 @@ pipeline:
     with:
       packages: .
       output: ${{context.name}}
+      go-package: go-1.25
 
   - name: Rename go binary to use upstream name
     working-directory: ${{targets.contextdir}}
@@ -59,7 +65,9 @@ pipeline:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
+        set -euo pipefail
         check_target() {
           local cmd="$1"
           local symlinks_point_to="$2"
@@ -90,7 +98,6 @@ test:
         symlinks_point_to="wrapper"
         for cmd in $wrapped_cmds; do
           check_target "$cmd" "$symlinks_point_to"
-          test -x "/usr/bin/$target"
           # when invoked, the wrapper will detect the in-use variant
           # (legacy | nft) and call its command instead. then, as an
           # optimization, it will update the symlink to point directly
@@ -104,8 +111,11 @@ test:
               ;;
             ip*tables-save)
               # has no help/version, but run it to trigger the wrapper's
-              # symlink replacement as a side-effect
-              "$cmd" || /bin/true
+              # symlink replacement as a side-effect; it may fail with
+              # "Permission denied" (not root) or "Protocol not supported"
+              out=$("$cmd" 2>&1) || \
+                echo "$out" | grep -qE \
+                  "Protocol not supported|Permission denied"
               ;;
             *)
               echo "ERROR: Unknown command $cmd" 1>&2

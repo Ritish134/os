@@ -1,23 +1,32 @@
 package:
   name: apko
-  version: "0.30.35"
-  epoch: 0 # CVE-2025-47907
+  version: "1.2.3"
+  epoch: 0 # CVE-2026-32280
   description: Build OCI images using APK directly without Dockerfile
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "2"
+    memory: 7Gi
+
+environment:
+  contents:
+    packages:
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chainguard-dev/apko
       tag: v${{package.version}}
-      expected-commit: 8b647a59105a101b26838744716c2332a1b2313e
+      expected-commit: 6f90ec8289c6c04dfacaf2768d2755f6780f6e66
 
   - uses: go/build
     with:
+      go-package: go-1.26
       output: apko
       packages: .
       ldflags: |
@@ -29,11 +38,16 @@ pipeline:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: apko
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: apko
     - runs: |
-        apko version | grep ${{package.version}}
-        apko --help
-    - runs: |
-        cat <<EOF >> /tmp/wolfi-base.yaml
+        cat <<'EOF' >> /tmp/wolfi-base.yaml
         contents:
           keyring:
             - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub

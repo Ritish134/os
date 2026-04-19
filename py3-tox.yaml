@@ -1,12 +1,15 @@
 package:
   name: py3-tox
-  version: "4.33.0"
-  epoch: 0
+  version: "4.53.0"
+  epoch: 0 # go/wolfi-rsc/py3-tox
   description: Command line driven CI frontend and development task automation tool
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 vars:
   pypi-package: tox
@@ -23,6 +26,7 @@ environment:
   contents:
     packages:
       - py3-supported-build-base-dev
+      - py3-supported-docutils
       - py3-supported-hatch-vcs
       - py3-supported-hatchling
 
@@ -31,7 +35,7 @@ pipeline:
     with:
       repository: https://github.com/tox-dev/tox
       tag: ${{package.version}}
-      expected-commit: 9c5fe79ef5b590ccc121f73d3e76cee45757efae
+      expected-commit: 4c584f24ab0331d26468216116a8c1382b75c21f
 
 subpackages:
   - range: py-versions
@@ -44,6 +48,7 @@ subpackages:
         - py${{range.key}}-cachetools
         - py${{range.key}}-colorama
         - py${{range.key}}-tomli
+        - py${{range.key}}-tomli-w
         - py${{range.key}}-pluggy
         - py${{range.key}}-packaging
         - py${{range.key}}-chardet
@@ -62,11 +67,14 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
             import: ${{vars.pypi-package}}
-        - runs: tox-${{range.key}} --version
+        - uses: test/tw/ver-check
+          with:
+            bins: tox-${{range.key}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.

@@ -1,7 +1,7 @@
 package:
   name: py3-llm
-  version: "0.28"
-  epoch: 0
+  version: "0.30"
+  epoch: 0 # go/wolfi-rsc/py3-llm
   description: Access large language models from the command-line
   copyright:
     - license: Apache-2.0
@@ -9,6 +9,9 @@ package:
     cgr.dev/ecosystem: python
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 vars:
   pypi-package: llm
@@ -30,7 +33,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 4766f47946226069a780195f738b3044525720c2
+      expected-commit: 7169fe9085e63a98dee4374bda5848f5f9b1363c
       repository: https://github.com/simonw/llm
       tag: ${{package.version}}
 
@@ -48,7 +51,7 @@ subpackages:
         - py${{range.key}}-condense-json
         - py${{range.key}}-openai
         - py${{range.key}}-pluggy
-        - py${{range.key}}-puremagic
+        - py${{range.key}}-puremagic-1
         - py${{range.key}}-pydantic
         - py${{range.key}}-python-ulid
         - py${{range.key}}-pyyaml
@@ -93,8 +96,9 @@ subpackages:
           mv ./tests/cleanup/${{range.key}}/bin ${{targets.contextdir}}/usr/
     test:
       pipeline:
-        - runs: |
-            llm --help
+        - uses: test/tw/help-check
+          with:
+            bins: llm
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.

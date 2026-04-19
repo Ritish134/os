@@ -1,7 +1,7 @@
 package:
   name: dask-gateway
-  version: "2025.4.0"
-  epoch: 6 # CVE-2025-61729
+  version: "2026.3.0"
+  epoch: 1 # go/wolfi-rsc/dask-gateway
   description: "A multi-tenant server for securely deploying and managing Dask clusters."
   copyright:
     - license: BSD-3-Clause
@@ -16,6 +16,12 @@ package:
       - py${{vars.python-version}}-pyyaml
       - py${{vars.python-version}}-sortedcontainers
       - py${{vars.python-version}}-tornado
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   python-version: 3.13
@@ -37,7 +43,7 @@ pipeline:
     with:
       repository: https://github.com/dask/dask-gateway
       tag: ${{package.version}}
-      expected-commit: 74c3069901f415bee93e08cf6a12b42fc1673c99
+      expected-commit: 82efdfabf723b0ff382255898a2671ebc57583be
 
   - runs: |
       cd ${{package.name}}
@@ -49,11 +55,15 @@ pipeline:
       python${{vars.python-version}} -m venv .venv --system-site-packages
       .venv/bin/pip install -I --no-deps --no-compile dist/*.whl
       .venv/bin/pip install -I --no-deps --no-compile dask
-      .venv/bin/pip install -I --no-deps --no-compile distributed
+      .venv/bin/pip install -I --no-deps --no-compile 'distributed>=2026.1.0'
       .venv/bin/pip install -I --no-deps --no-compile locket
       .venv/bin/pip install -I --no-deps --no-compile tblib
       .venv/bin/pip install -I --no-deps --no-compile toolz
       .venv/bin/pip install -I --no-deps --no-compile zict
+
+      # Remove pip to avoid accumulating CVEs in vendored dependencies
+      .venv/bin/pip uninstall --yes pip
+
       mkdir -p ${{targets.destdir}}/usr/share/${{package.name}}
       mv .venv ${{targets.destdir}}/usr/share/${{package.name}}/
 
@@ -92,6 +102,9 @@ subpackages:
           # Setup venv and install package
           python${{vars.python-version}} -m venv .venv --system-site-packages
           .venv/bin/pip install -I --no-deps --no-compile dist/*.whl
+
+          # Remove pip to avoid accumulating CVEs in vendored dependencies
+          .venv/bin/pip uninstall --yes pip
 
           mkdir -p ${{targets.subpkgdir}}/usr/share/${{package.name}}-server
           mv .venv ${{targets.subpkgdir}}/usr/share/${{package.name}}-server/

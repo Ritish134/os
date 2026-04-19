@@ -1,6 +1,6 @@
 package:
   name: py3-jiter
-  version: "0.12.0"
+  version: "0.14.0"
   epoch: 0
   description: Fast iterable JSON parser
   copyright:
@@ -36,7 +36,7 @@ pipeline:
     with:
       repository: https://github.com/pydantic/jiter.git
       tag: v${{package.version}}
-      expected-commit: 2ad77c2a03583da20e766d18519eb6798ec43f8a
+      expected-commit: dcdc93df6b9c6eb53facb0fff725069d9528d735
 
 subpackages:
   - range: py-versions
@@ -54,6 +54,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: test/tw/virtualpackage
           with:
             virtual-pkg-name: py3-${{vars.pypi-package}}

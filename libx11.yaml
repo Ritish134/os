@@ -1,10 +1,12 @@
 package:
   name: libx11
-  version: "1.8.12"
-  epoch: 3
+  version: "1.8.13"
+  epoch: 4
   description: X11 client-side library
   copyright:
     - license: XFree86-1.1
+  resources:
+    memory: 2Gi
 
 environment:
   contents:
@@ -19,7 +21,7 @@ environment:
       - libtool
       - libxcb-dev
       - pkgconf-dev
-      - util-macros
+      - util-macros-dev
       - xmlto
       - xorgproto
       - xtrans
@@ -29,7 +31,7 @@ pipeline:
     with:
       repository: https://gitlab.freedesktop.org/xorg/lib/libx11.git
       tag: libX11-${{package.version}}
-      expected-commit: 59917d28a3c41ad22d6fc52e323cafe2cdd596d5
+      expected-commit: 6c75545a1deb51f5903992c52af6bc35cc9bc103
 
   - runs: ./autogen.sh
 
@@ -54,8 +56,14 @@ pipeline:
 subpackages:
   - name: libx11-static
     description: libx11 static library
+    dependencies:
+      runtime:
+        - libxcb-static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: libx11-doc
     pipeline:
@@ -63,7 +71,7 @@ subpackages:
     description: libx11 manpages
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
   - name: libx11-dev
     pipeline:
@@ -76,12 +84,41 @@ subpackages:
     description: libx11 dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
 test:
+  environment:
+    contents:
+      packages:
+        - libx11-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <X11/Xlib.h>
+        #include <stdio.h>
+
+        int main() {
+            /* Attempt to open display - will return NULL without a display server,
+               but this proves the library links and the function is callable */
+            Display *dpy = XOpenDisplay(NULL);
+            if (dpy != NULL) {
+                XCloseDisplay(dpy);
+            }
+            printf("libX11 compile and link test passed\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags x11) test.c -o test $(pkg-config --libs x11)
+        ./test
 
 update:
   enabled: true

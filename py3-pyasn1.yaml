@@ -1,12 +1,15 @@
 package:
   name: py3-pyasn1
-  version: 0.6.1
-  epoch: 4
+  version: "0.6.3"
+  epoch: 1 # go/wolfi-rsc/py3-pyasn1
   description: Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)
   copyright:
     - license: BSD-2-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 vars:
   pypi-package: pyasn1
@@ -28,7 +31,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 0f07d7242a78ab4d129b26256d7474f7168cf536
+      expected-commit: af65c3b92e9deeae50db4de390982dd970d87f98
       repository: https://github.com/pyasn1/pyasn1
       tag: v${{package.version}}
 
@@ -48,6 +51,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

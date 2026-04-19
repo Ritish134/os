@@ -1,13 +1,13 @@
 package:
   name: apache-nifi
-  version: "2.7.2"
-  epoch: 2 # GHSA-x44p-gvrj-pj2r
+  version: "2.8.0"
+  epoch: 6
   description: Apache NiFi is an easy to use, powerful, and reliable system to process and distribute data.
   copyright:
     - license: Apache-2.0
   resources:
-    cpu: 33
-    memory: 32Gi
+    cpu: 48
+    memory: 128Gi
     disk: 100Gi
   dependencies:
     runtime:
@@ -50,16 +50,7 @@ pipeline:
     with:
       repository: https://github.com/apache/nifi
       tag: rel/nifi-${{package.version}}
-      expected-commit: 098c97460988449ef4fba5508a83b20cc65ce9ab
-
-  - uses: patch
-    with:
-      patches: |
-        GHSA-x44p-gvrj-pj2r.patch
-
-  - uses: maven/pombump
-    with:
-      patch-file: pombump-deps.yaml
+      expected-commit: 67407bdb75977dbdc382b318773fa313ac70e4df
 
   - uses: maven/pombump
     with:
@@ -67,23 +58,18 @@ pipeline:
 
   - uses: maven/pombump
     with:
-      patch-file: pombump-nimbus-jose-jwt.yaml
-      pom: nifi-extension-bundles/nifi-azure-bundle/pom.xml
-
-  - uses: maven/pombump
-    with:
-      patch-file: pombump-nifi-email-nar.yaml
-      pom: nifi-extension-bundles/nifi-email-bundle/nifi-email-processors/pom.xml
-
-  - uses: maven/pombump
-    with:
-      patch-file: pombump-nifi-standard-bundle.yaml
+      patch-file: pombump-deps-nifi-standard.yaml
       pom: nifi-extension-bundles/nifi-standard-bundle/pom.xml
 
   - uses: maven/pombump
     with:
-      patch-file: pombump-nimbus-jose-jwt.yaml
-      pom: nifi-framework-bundle/pom.xml
+      pom: nifi-framework-bundle/nifi-framework-extensions/nifi-framework-zookeeper-bundle/pom.xml
+      properties-file: nifi-framework-zookeeper-bundle-properties.yaml
+
+  - uses: patch
+    with:
+      patches: |
+        zookeeper-3.9.5-compat.patch
 
   - name: "fix nifi-frontend build"
     runs: |

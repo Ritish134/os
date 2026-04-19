@@ -1,7 +1,7 @@
 package:
   name: llhttp
-  version: "9.3.0"
-  epoch: 1
+  version: "9.3.1"
+  epoch: 3
   description: "HTTP parser written against llparse"
   copyright:
     - license: MIT
@@ -11,16 +11,17 @@ environment:
     packages:
       - build-base
       - busybox
-      - clang-16
+      - clang-21
       - cmake
       - nodejs-lts
       - npm
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://github.com/nodejs/llhttp/archive/v${{package.version}}/llhttp-${{package.version}}.tar.gz
-      expected-sha512: ff4166f842f933cbb419221ab401e684c1314072abef2cda455812cc20c28ce4b467ed5f44079b6844eaa627c975247f640a8449b5f512e1a76d6df81790dec5
+      repository: https://github.com/nodejs/llhttp
+      tag: v${{package.version}}
+      expected-commit: 06b12e87f209da43e3e9e0f958b7464a4a218896
 
   - runs: |
       npm ci
@@ -28,9 +29,11 @@ pipeline:
   - runs: |
       make release RELEASE="${{package.version}}"
       cmake -S release -B releasebuild \
+        -DLLHTTP_BUILD_STATIC_LIBS=ON \
         -DCMAKE_BUILD_TYPE=MinSizeRel \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DBUILD_SHARED_LIBS=ON
       cmake --build releasebuild
 
@@ -40,12 +43,24 @@ pipeline:
   - uses: strip
 
 subpackages:
+  - name: "llhttp-static"
+    description: "llhttp static"
+    dependencies:
+      runtime:
+        - "llhttp-dev==${{package.full-version}}"
+    pipeline:
+      - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
+
   - name: "llhttp-dev"
     description: "llhttp development headers"
     pipeline:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -57,5 +72,64 @@ update:
     tag-filter: release/
 
 test:
+  environment:
+    contents:
+      packages:
+        - llhttp-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - uses: test/tw/header-check
+      with:
+        files: "llhttp.h"
+    - name: Functional HTTP parsing test
+      runs: |
+        set -euo pipefail
+
+        tee test_parse.c <<'EOF'
+        #include <llhttp.h>
+        #include <stdio.h>
+        #include <string.h>
+
+        int main() {
+            llhttp_t parser;
+            llhttp_settings_t settings;
+
+            /* Initialize settings */
+            llhttp_settings_init(&settings);
+
+            /* Initialize parser for HTTP requests */
+            llhttp_init(&parser, HTTP_REQUEST, &settings);
+
+            /* Parse a minimal HTTP request */
+            const char *request = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+            size_t len = strlen(request);
+
+            enum llhttp_errno err = llhttp_execute(&parser, request, len);
+            if (err != HPE_OK) {
+                fprintf(stderr, "FAIL: Parse error: %s %s\n",
+                        llhttp_errno_name(err),
+                        parser.reason);
+                return 1;
+            }
+
+            /* Verify parsed method and HTTP version */
+            if (parser.method != HTTP_GET) {
+                fprintf(stderr, "FAIL: Expected GET method\n");
+                return 1;
+            }
+
+            if (parser.http_major != 1 || parser.http_minor != 1) {
+                fprintf(stderr, "FAIL: Expected HTTP/1.1\n");
+                return 1;
+            }
+
+            printf("SUCCESS: Parsed HTTP GET request (HTTP/%d.%d)\n",
+                   parser.http_major, parser.http_minor);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libllhttp) test_parse.c -o test_parse $(pkg-config --libs libllhttp)
+        ./test_parse

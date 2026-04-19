@@ -1,7 +1,7 @@
 package:
   name: ruby-4.0
-  version: "4.0.0"
-  epoch: 0
+  version: "4.0.2"
+  epoch: 1 # go/wolfi-rsc/ruby-4.0
   description: "the Ruby programming language"
   copyright:
     - license: Ruby
@@ -17,8 +17,12 @@ package:
       - glibc
       - gmp
       - libgcc
+      - ruby${{vars.ruby-major-version}}-json
       - yaml
       - zlib
+  resources:
+    cpu: "8"
+    memory: 15Gi
 
 environment:
   contents:
@@ -64,7 +68,7 @@ pipeline:
     with:
       repository: https://github.com/ruby/ruby
       tag: v${{package.version}}
-      expected-commit: 553f1675f3a9cece340b90f374a4245dccac2272
+      expected-commit: d3da9fec828481422cc4084892454bf572d7af5a
 
   - uses: patch
     with:
@@ -111,6 +115,7 @@ pipeline:
       GEMDIR=${{targets.destdir}}${{vars.prefix}}/lib/ruby/gems/$RUBYWILD
       rm -rf ${GEMDIR}/gems/bundler-*
       rm -f ${GEMDIR}/specifications/default/bundler-*.gemspec
+      rm -f ${GEMDIR}/specifications/default/json-*.gemspec
 
       rm -f ${{targets.destdir}}/usr/bin/bundle \
          ${{targets.destdir}}/usr/bin/bundler
@@ -145,14 +150,11 @@ subpackages:
 
 update:
   enabled: true
-  version-transform:
-    - match: "_"
-      replace: .
   github:
     identifier: ruby/ruby
     strip-prefix: v
     use-tag: true
-    tag-filter-prefix: v4_0_
+    tag-filter-prefix: v4.0
 
 test:
   environment:

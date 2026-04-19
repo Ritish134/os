@@ -1,30 +1,35 @@
 package:
   name: yunikorn-k8shim
-  version: "1.7.0"
-  epoch: 7 # GHSA-r6j8-c6r2-37rr
+  version: "1.8.0"
+  epoch: 11 # CVE-2026-32280
   description: Apache YuniKorn K8shim
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 7Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: c5a73d907c0308e6070614a8e15421d569d74bd5
+      expected-commit: f30cb8715cf2ff8ec954545ca9b3f01e899234ae
       repository: https://github.com/apache/yunikorn-k8shim
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/net@v0.38.0
-        k8s.io/kubernetes@v1.32.10
-      modroot: .
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       output: yunikorn-scheduler
       packages: ./pkg/cmd/shim/
       modroot: .
+      go-package: go-1.25
       ldflags: |
         -X github.com/apache/yunikorn-k8shim/pkg/conf.buildVersion=${{package.version}}
         -X github.com/apache/yunikorn-k8shim/pkg/conf.buildDate=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" "+%Y-%m-%dT%H:%M:%SZ")
@@ -41,7 +46,15 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}/
-          ln -sf /usr/bin/yunikorn-scheduler ${{targets.contextdir}}/yunikorn-scheduler
+          ln -sf ./usr/bin/yunikorn-scheduler ${{targets.contextdir}}/yunikorn-scheduler
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -54,6 +67,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - runs: |
         yunikorn-scheduler > /tmp/logs.txt 2>&1 &
@@ -61,3 +75,8 @@ test:
         sleep 5
         kill $PID
         cat /tmp/logs.txt | grep "Starting scheduler"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

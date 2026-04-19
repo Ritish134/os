@@ -1,10 +1,16 @@
 package:
   name: temporal
-  version: "1.5.1"
-  epoch: 3 # GHSA-p2gr-hm8g-q772
+  version: "1.6.2"
+  epoch: 3 # GHSA-hfvc-g4fc-pqhx GHSA-q98v-9f9w-f49q GHSA-xpg8-3hhp-p7w8
   description: Command-line interface for running Temporal Server and interacting with Workflows, Activities, Namespaces, and other parts of Temporal
   copyright:
     - license: MIT
+  resources:
+    cpu: "3"
+    memory: 12Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -12,7 +18,7 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.26
       - wolfi-baselayout
   environment:
     CGO_ENABLED: 0
@@ -22,28 +28,45 @@ pipeline:
     with:
       repository: https://github.com/temporalio/cli
       tag: v${{package.version}}
-      expected-commit: 2445cdaeca0d2501a09837e388aa78ba1d65edaa
+      expected-commit: 17c6c96d4fb87deb5880ad4d9d28f6993d338ddd
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-        go.temporal.io/server@v1.29.2
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+      modroot: cliext
+      tidy: false
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
+        filippo.io/edwards25519@v1.1.1
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        go.temporal.io/server@v1.30.4
 
   - uses: go/build
     with:
       packages: ./cmd/temporal
       output: temporal
-
-  - uses: strip
+      go-package: go-1.26
 
 subpackages:
   - name: temporal-compat
     description: "Compat package for temporal"
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"/usr/local/bin
-          ln -s /usr/bin/temporal "${{targets.contextdir}}"/usr/local/bin
+          ln -sf ../../bin/temporal "${{targets.contextdir}}"/usr/local/bin/temporal
 
 update:
   enabled: true
@@ -53,10 +76,12 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Check temporal version
       runs: |
         temporal --version
         temporal --help
     - name: Test workflow list command
       runs: |
-        temporal workflow list --address 192.0.2.0:1234 2>&1 | grep "failed reaching server"
+        output=$(temporal workflow list --address 192.0.2.0:1234 2>&1 || true)
+        echo "$output" | grep "failed reaching server"

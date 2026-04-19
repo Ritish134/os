@@ -1,14 +1,21 @@
 package:
   name: step-ca
-  version: "0.29.0"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "0.30.2"
+  epoch: 4 # CVE-2026-32280
   description: A private certificate authority (X.509 & SSH) & ACME server for secure automated certificate management, so you can use TLS everywhere & SSO for SSH.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
+      - go-1.25
       - pcsc-lite-dev
       - step
 
@@ -17,7 +24,14 @@ pipeline:
     with:
       repository: https://github.com/smallstep/certificates
       tag: v${{package.version}}
-      expected-commit: 992ff696e95b424a99140bd7edb2144013975059
+      expected-commit: 6e8ec61405239cf3f37b2bbf260a587b7d2e4e31
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
+        github.com/go-jose/go-jose/v3@v3.0.5
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - uses: go/build
     with:

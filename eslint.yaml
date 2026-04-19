@@ -1,13 +1,19 @@
 package:
   name: eslint
-  version: "9.39.2"
-  epoch: 0 # GHSA-mh29-5h37-fv8m
+  version: "10.2.1"
+  epoch: 0 # go/wolfi-rsc/eslint
   description: An AST-based pattern checker for JavaScript
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - nodejs
+  resources:
+    cpu: "1"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -25,7 +31,7 @@ pipeline:
     with:
       repository: https://github.com/eslint/eslint
       tag: v${{package.version}}
-      expected-commit: 9278324aa0023d223874825b0d4b6ac75783096a
+      expected-commit: 4d1d8f9737236603f64bbe83d5bb8001627b5611
 
   - runs: |
       npm install js-yaml@4.1.1 # GHSA-mh29-5h37-fv8m
@@ -56,6 +62,7 @@ test:
     - name: Test for undefined variables
       working-directory: test-js
       runs: |
+        set -euo pipefail
         cat << EOF > eslint.config.js
         export default [
             {
@@ -67,4 +74,4 @@ test:
         ];
         EOF
         echo "console.log('Hello, world!');" > hello.js
-        eslint hello.js | grep -qi "'console' is not defined"
+        eslint hello.js | grep -F "'console' is not defined"

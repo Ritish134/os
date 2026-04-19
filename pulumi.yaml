@@ -1,19 +1,24 @@
 package:
   name: pulumi
-  version: "3.214.1"
-  epoch: 0
+  version: "3.229.0"
+  epoch: 4 # CVE-2026-32280
   description: Infrastructure as Code in any programming language
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "8"
+    memory: 11Gi
 
 environment:
   contents:
     packages:
       - build-base
+      - bun
       - busybox
       - ca-certificates-bundle
       - coreutils
       - go
+      - jq
       - nodejs
       - patch
       - python-3.11
@@ -28,9 +33,108 @@ pipeline:
   - uses: git-checkout
     with:
       destination: ${{package.name}}
-      expected-commit: 3186ab67b16ec125051c6eeb96817ae96a7111e8
+      expected-commit: 4a1e067a15f35e64a220b2a49cb684f0df1b19fd
       repository: https://github.com/pulumi/pulumi.git
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-git/go-git/v5@v5.17.1
+      modroot: |-
+        pulumi/sdk
+        pulumi/sdk/go/auto/test/errors/compilation_error/go
+        pulumi/sdk/go/auto/test/errors/conflict_error
+        pulumi/sdk/go/auto/test/errors/runtime_error/go
+        pulumi/sdk/go/auto/test/testproj
+        pulumi/sdk/go/auto/testdata/slow
+        pulumi/sdk/go/pulumi-language-go
+        pulumi/sdk/nodejs/cmd/pulumi-language-nodejs
+        pulumi/sdk/nodejs/tests/automation/data/testproj
+        pulumi/sdk/pcl
+        pulumi/sdk/python/cmd/pulumi-language-python
+        pulumi/sdk/python/lib/test/automation/data/testproj
+        pulumi/sdk/python/lib/test/automation/errors/compilation_error/go
+        pulumi/sdk/python/lib/test/automation/errors/conflict_error
+        pulumi/sdk/python/lib/test/automation/errors/runtime_error/go
+        pulumi/tests/benchmarks/go-alias-norm
+        pulumi/tests/integration/about/go
+        pulumi/tests/integration/aliases/go/adopt_component_child/step1
+        pulumi/tests/integration/aliases/go/adopt_into_component/step1
+        pulumi/tests/integration/aliases/go/extract_component_child/step1
+        pulumi/tests/integration/aliases/go/rename/step1
+        pulumi/tests/integration/aliases/go/rename_component/step1
+        pulumi/tests/integration/aliases/go/rename_component_and_child/step1
+        pulumi/tests/integration/aliases/go/rename_component_child/step1
+        pulumi/tests/integration/aliases/go/retype_component/step1
+        pulumi/tests/integration/aliases/go/retype_component_child/step1
+        pulumi/tests/integration/aliases/go/retype_parents/step1
+        pulumi/tests/integration/aliases/go/retype_remote_component_and_child/step1
+        pulumi/tests/integration/backend/diy/project
+        pulumi/tests/integration/call_component_failures/go
+        pulumi/tests/integration/config_basic/go
+        pulumi/tests/integration/config_missing/go
+        pulumi/tests/integration/config_secrets_warn/go
+        pulumi/tests/integration/construct_component/go
+        pulumi/tests/integration/construct_component_configure_provider/testcomponent-go
+        pulumi/tests/integration/construct_component_failures/go
+        pulumi/tests/integration/construct_component_methods/go
+        pulumi/tests/integration/construct_component_methods_errors/go
+        pulumi/tests/integration/construct_component_methods_provider/go
+        pulumi/tests/integration/construct_component_methods_resources/go
+        pulumi/tests/integration/construct_component_methods_unknown/go
+        pulumi/tests/integration/construct_component_output_values/go
+        pulumi/tests/integration/construct_component_plain/go
+        pulumi/tests/integration/construct_component_provider/go
+        pulumi/tests/integration/construct_component_provider_explicit/go
+        pulumi/tests/integration/construct_component_provider_propagation/go
+        pulumi/tests/integration/construct_component_resource_options/go
+        pulumi/tests/integration/construct_component_unknown/go
+        pulumi/tests/integration/construct_nested_component/go
+        pulumi/tests/integration/deleted_with/go
+        pulumi/tests/integration/empty/go
+        pulumi/tests/integration/empty/gorun
+        pulumi/tests/integration/empty/gorun_main/gorun_main_src
+        pulumi/tests/integration/error_hooks/go/step-1
+        pulumi/tests/integration/gather_plugin/go
+        pulumi/tests/integration/get_resource/go
+        pulumi/tests/integration/go/component-configure-panic/go
+        pulumi/tests/integration/go/go-build-target
+        pulumi/tests/integration/go/go-exit-5
+        pulumi/tests/integration/go/go-exit-error
+        pulumi/tests/integration/go/go-no-main-package
+        pulumi/tests/integration/go/packageadd
+        pulumi/tests/integration/go/parameterized
+        pulumi/tests/integration/go/program-panic
+        pulumi/tests/integration/large_resource/go
+        pulumi/tests/integration/log_debug/go
+        pulumi/tests/integration/printf/go
+        pulumi/tests/integration/program_error/go/step1
+        pulumi/tests/integration/project_main/go/a/path/to/main
+        pulumi/tests/integration/refresh/go
+        pulumi/tests/integration/resource_hooks/go/step-1
+        pulumi/tests/integration/resource_hooks/go_secret
+        pulumi/tests/integration/resource_hooks/go_transform
+        pulumi/tests/integration/resource_refs_get_resource/go
+        pulumi/tests/integration/rotate_passphrase
+        pulumi/tests/integration/run_plugin/go
+        pulumi/tests/integration/run_plugin/provider-go
+        pulumi/tests/integration/signal_cancellation/go
+        pulumi/tests/integration/signal_cancellation/go_ignore
+        pulumi/tests/integration/stack_outputs_program_error/go/step1
+        pulumi/tests/integration/stack_outputs_resource_error/go/step1
+        pulumi/tests/integration/state_rename_parent
+        pulumi/tests/integration/transformations/go/simple
+        pulumi/tests/integration/transforms/go/simple
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v3@v3.0.5
+        github.com/go-git/go-git/v5@v5.17.1
+      modroot: |-
+        pulumi/pkg
+        pulumi/tests
 
   - pipeline:
       - runs: |
@@ -40,6 +144,11 @@ pipeline:
           export PULUMI_ROOT="$(mktemp -d)"
           export GOBIN="${PULUMI_ROOT}/bin"
           mkdir -p "${{targets.contextdir}}/usr/bin" "${{targets.contextdir}}/usr/lib"
+
+          # proto/generate.sh requires 'mise where protoc' to locate the protoc include dir.
+          # Protos are already pre-generated in the source tree, so we skip regeneration by
+          # pre-creating the make stamp file.
+          mkdir -p .make && touch .make/proto
 
           # Build the Pulumi CLI itself
           SDKS= make install
@@ -55,7 +164,7 @@ pipeline:
               # Remediate GHSA-m425-mq94-257g
               cd pulumi-language-${lang} && \
                 go get golang.org/x/crypto@v0.37.0 && \
-                go mod edit -replace=golang.org/x/net=golang.org/x/net@v0.38.0 && \
+                go mod edit -replace=golang.org/x/net=golang.org/x/net@v0.51.0 && \
                 go get github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.6.0 && \
                 go get github.com/hashicorp/go-retryablehttp@v0.7.7 && \
                 go get github.com/pulumi/pulumi/pkg/v3 && \
@@ -68,7 +177,7 @@ pipeline:
               # Remediate GHSA-m425-mq94-257g
               cd cmd/pulumi-language-${lang} && \
                 go get golang.org/x/crypto@v0.37.0 && \
-                go mod edit -replace=golang.org/x/net=golang.org/x/net@v0.38.0 && \
+                go mod edit -replace=golang.org/x/net=golang.org/x/net@v0.51.0 && \
                 go get github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.6.0 && \
                 go get github.com/hashicorp/go-retryablehttp@v0.7.7 && \
                 go get github.com/pulumi/pulumi/pkg/v3 && \
@@ -81,6 +190,8 @@ pipeline:
                     yarn upgrade brace-expansion@^2.0.1 --latest
                     # Fix tmp CVE GHSA-52f5-9888-hmc6
                     yarn upgrade tmp@^0.2.4
+                    resolutions='{"@isaacs/brace-expansion": "5.0.1", "tar": "7.5.11", "minimatch": "10.2.3", "picomatch": "4.0.4", "brace-expansion": "5.0.5"}'
+                    jq --argjson resolutions "$resolutions" '.resolutions += $resolutions' ../../package.json > temp.json && mv temp.json ../../package.json
                 fi
 
                 cd ../..
@@ -100,7 +211,6 @@ pipeline:
             mv -v "${PULUMI_ROOT}"/bin/pulumi* "${{targets.contextdir}}/usr/bin"
             cd ../..
           done
-      - uses: strip
     working-directory: ${{package.name}}
 
 subpackages:
@@ -112,8 +222,9 @@ subpackages:
           mv -v "${{targets.destdir}}"/usr/bin/pulumi-*go* "${{targets.contextdir}}/usr/bin"
     test:
       pipeline:
-        - runs: |
-            pulumi-language-go --help
+        - uses: test/tw/help-check
+          with:
+            bins: pulumi-language-go
 
   - name: "pulumi-language-nodejs"
     description: "Pulumi Language SDK for Node.js"
@@ -124,8 +235,6 @@ subpackages:
       - runs: |
           mkdir -p "${{targets.contextdir}}/usr/bin" "${{targets.contextdir}}/usr/lib"
           mv -v "${{targets.destdir}}"/usr/bin/pulumi-*nodejs* "${{targets.contextdir}}/usr/bin"
-          # pulumi-analyzer-policy is built by the nodejs sdk even though it doesnt contain the string "nodejs"
-          mv -v "${{targets.destdir}}"/usr/bin/pulumi-analyzer-policy "${{targets.contextdir}}/usr/bin"
 
           # Move node modules from main package to this subpackage so the tools can find and use them
           mv "${{targets.destdir}}/usr/lib/node_modules" "${{targets.contextdir}}/usr/lib/node_modules"
@@ -134,14 +243,16 @@ subpackages:
           find "${{targets.contextdir}}/usr/lib/node_modules/" -type f -name "*.ps1" -exec rm -f {} \;
 
           # Fix up the wrapper scripts to be able to locate the necessary node modules
-          sed -i 's|PULUMI_RUN_SCRIPT_PATH=.*|PULUMI_RUN_SCRIPT_PATH="/usr/lib/node_modules/@pulumi/pulumi/cmd/run-policy-pack/index.js"|' "${{targets.contextdir}}/usr/bin/pulumi-analyzer-policy"
           sed -i 's|PULUMI_DYNAMIC_PROVIDER_SCRIPT_PATH=.*|PULUMI_DYNAMIC_PROVIDER_SCRIPT_PATH="/usr/lib/node_modules/@pulumi/pulumi/cmd/dynamic-provider/index.js"|' "${{targets.contextdir}}/usr/bin/pulumi-resource-pulumi-nodejs"
     test:
       pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: pulumi-language-nodejs
         - runs: |
-            pulumi-analyzer-policy 2>&1 | grep "usage:"
-            pulumi-language-nodejs --help
-            pulumi-resource-pulumi-nodejs 2>&1 | grep "fatal: Missing <engine> address"
+            set -euo pipefail
+            output=$(pulumi-resource-pulumi-nodejs 2>&1 || true)
+            echo "$output" | grep -F "fatal: Missing <engine> address"
 
   - name: "pulumi-language-python"
     description: "Pulumi Language SDK for Python"
@@ -151,15 +262,20 @@ subpackages:
           mv -v "${{targets.destdir}}"/usr/bin/pulumi-*python* "${{targets.contextdir}}/usr/bin"
     test:
       pipeline:
-        - runs: |
-            pulumi-language-python --help
+        - uses: test/tw/help-check
+          with:
+            bins: pulumi-language-python
 
 test:
   pipeline:
-    - name: Verify Pulumi installation
-      runs: |
-        pulumi version | grep ${{package.version}}
-        pulumi --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: pulumi
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: pulumi
 
 update:
   enabled: true

@@ -1,10 +1,14 @@
 package:
   name: rpm-sequoia
-  version: "1.10.0"
-  epoch: 1 # GHSA-v6x3-9r38-r27q
+  version: "1.10.1"
+  epoch: 9
   description: "An OpenPGP backend for rpm using Sequoia PGP"
   copyright:
     - license: LGPL-2.0-or-later
+  dependencies:
+    runtime:
+      - libcrypto3
+      - libssl3
 
 environment:
   contents:
@@ -12,26 +16,33 @@ environment:
       - build-base
       - busybox
       - cargo-auditable
-      - clang
-      - nettle-dev
-      - rust
+      - clang-${{vars.clang-version}}
+      - openssl-dev
+      - rust-1.94
+  environment:
+    PREFIX: /usr
+    LIBDIR: /usr/lib
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/rpm-software-management/rpm-sequoia
-      expected-commit: eb3cd2bfaf42a8806cba5bd060c7458654625c94
+      expected-commit: 140fd7eea182d8d58718572f89a85fe3eec29741
       tag: v${{package.version}}
 
   - uses: rust/cargobump
 
   - runs: |
-      PREFIX=/usr LIBDIR="\${prefix}/lib" \
-        cargo auditable build --target-dir target --release
+      cargo auditable build --target-dir target --release \
+        --no-default-features --features crypto-openssl
 
+  - runs: |
       # The tests examine OUTPUT_DIR explicitly, so we can't run them after
-      # install
-      cargo test --release
+      # install. TEST_DONT_BUILD_LIB=1 skips the internal cargo build in
+      # tests/symbols.rs so it uses our already-built crypto-openssl .so
+      # instead of trying to rebuild with the default crypto-nettle backend
+      # (which fails against nettle 4.0).
+      TEST_DONT_BUILD_LIB=1 cargo test --release --no-default-features --features crypto-openssl
 
       INSTALL_PATH="${{targets.contextdir}}/usr/lib"
       mkdir -p "${INSTALL_PATH}/pkgconfig"
@@ -39,6 +50,19 @@ pipeline:
       mv target/release/rpm-sequoia.pc "${INSTALL_PATH}/pkgconfig"
 
   - uses: strip
+
+subpackages:
+  - name: ${{package.name}}-dev
+    description: Development files for ${{package.name}}
+    pipeline:
+      - uses: split/dev
+    dependencies:
+      runtime:
+        - ${{package.name}}
+    test:
+      pipeline:
+        - uses: test/pkgconf
+        - uses: test/tw/ldd-check
 
 update:
   enabled: true
@@ -50,10 +74,17 @@ test:
     contents:
       packages:
         - binutils
+        - openssl-dev
   pipeline:
-    - uses: test/pkgconf
     - runs: |
         # This is a smoke test based on:
         # https://github.com/rpm-software-management/rpm-sequoia/blob/main/tests/symbols.rs
         objdump -T /usr/lib/librpm_sequoia.so | grep _rpmInitCrypto
+    - name: verify dynamic linking of openssl
+      runs: |
+        readelf --dynamic /usr/lib/librpm_sequoia.so | grep NEEDED | grep -E 'libssl|libcrypto'
+        readelf --dyn-syms /usr/lib/librpm_sequoia.so | grep OPENSSL
     - uses: test/tw/ldd-check
+
+vars:
+  clang-version: 22

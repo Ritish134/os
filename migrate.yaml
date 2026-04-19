@@ -1,10 +1,13 @@
 package:
   name: migrate
   version: "4.19.1"
-  epoch: 1 # CVE-2025-61729
+  epoch: 12 # CVE-2026-32280
   description: CLI and Golang library for database migrations.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "4"
+    memory: 9Gi
 
 pipeline:
   - uses: git-checkout
@@ -13,8 +16,16 @@ pipeline:
       repository: https://github.com/golang-migrate/migrate
       tag: v${{package.version}}
 
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+
   - uses: go/build
     with:
+      go-package: go-1.25
       ldflags: |
         -X main.Version=${{package.version}}
       output: migrate
@@ -27,12 +38,14 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"
-          ln -s /usr/local/bin/migrate ${{targets.subpkgdir}}/migrate
-    # test added by a robot (compat)
+          ln -sf usr/bin/migrate "${{targets.subpkgdir}}/migrate"
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: |
-            readlink -v /migrate
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -42,6 +55,32 @@ update:
 
 test:
   pipeline:
-    - name: "Verify Installation"
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: migrate
+    - name: "Test migrate create functionality"
       runs: |
-        migrate --help
+        set -euo pipefail
+
+        # Create a temporary directory for migrations
+        mkdir -p /tmp/migrations
+
+        # Use migrate create to generate migration files
+        migrate create -ext sql -dir /tmp/migrations -seq test_migration
+
+        # Verify the up and down migration files were created
+        stat /tmp/migrations/000001_test_migration.up.sql
+        stat /tmp/migrations/000001_test_migration.down.sql
+
+        # Create a second migration to verify sequential numbering
+        migrate create -ext sql -dir /tmp/migrations -seq another_migration
+
+        # Verify the second pair of migration files
+        stat /tmp/migrations/000002_another_migration.up.sql
+        stat /tmp/migrations/000002_another_migration.down.sql
+
+environment:
+  contents:
+    packages:
+      - go-1.25

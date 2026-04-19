@@ -1,10 +1,13 @@
 package:
   name: gst-plugins-good
-  version: "1.27.50"
-  epoch: 0
+  version: "1.29.1"
+  epoch: 3
   description: GStreamer streaming media framework good plug-ins
   copyright:
     - license: LGPL-2.1
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 environment:
   contents:
@@ -45,7 +48,7 @@ pipeline:
     with:
       repository: https://github.com/GStreamer/gstreamer
       tag: ${{package.version}}
-      expected-commit: 98f0ec4b5dd48b36365e85ad8695e88b4a7d7ec0
+      expected-commit: 021f5980a8dbabb8b7b736bf89eda213e84248e4
 
   - working-directory: subprojects/gst-plugins-good
     pipeline:
@@ -87,17 +90,13 @@ subpackages:
     description: ${{package.name}} dev
     test:
       pipeline:
-        - uses: test/pkgconf
-        - uses: test/tw/ldd-check
-          with:
-            packages: ${{subpkg.name}}
+        - uses: test/tw/emptypackage
 
 update:
   enabled: true
   github:
     identifier: GStreamer/gstreamer
     use-tag: true
-    tag-filter-prefix: "1."
 
 test:
   pipeline:
@@ -109,9 +108,9 @@ test:
         gst-launch-1.0 audiotestsrc num-buffers=1 ! audioconvert ! fakesink && echo "✓ Audio pipeline works"
         echo "✓ gst-plugins-good test passed"
     - runs: |
-        echo "Testing pulsaudio plugin elements available..."
+        echo "Testing pulseaudio plugin elements available..."
         for element in pulsesrc pulsesink; do
-          gst-inspect-1.0 $element | grep -Eq "$element"
+          gst-inspect-1.0 "$element"
           echo "✓ $element found"
         done
         echo "✓ gst-plugins-good pulseaudio test passed"

@@ -1,18 +1,22 @@
 package:
   name: llvm-21
   version: "21.1.8"
-  epoch: 0
+  epoch: 9 # go/wolfi-rsc/llvm-21
   description: Low-level virtual machine ${{vars.major-version}} - core frameworks
   copyright:
     - license: Apache-2.0
   resources:
-    cpu: 32
+    cpu: "48"
     memory: 64Gi
   dependencies:
     provides:
       - llvm=${{package.full-version}}
+  test-resources:
+    cpu: "2"
+    memory: 9Gi
 
 vars:
+  bpf-bins: clang llc llvm-objcopy llvm-strip
   python-version: 3.13
 
 var-transforms:
@@ -58,11 +62,39 @@ pipeline:
       tag: llvmorg-${{package.version}}
       expected-commit: 2078da43e25a4623cab2d0d60decddf709aaea28
 
+  - name: Hot patch source to support oldglibc environment
+    runs: |
+      test -d /usr/lib/oldglibc || exit 0
+      if test -e /usr/lib/oldglibc/usr/include/sys/rseq.h; then
+        # it's a new-enough glibc
+        exit 0
+      fi
+      # In oldglibc environments, __has_include(<sys/rseq.h>) may fallback
+      # to the system headers in /usr/include and find a stubbed out copy.
+      # Hot-patch out the optional #include it is guarding.
+      file="llvm/tools/llvm-exegesis/lib/BenchmarkRunner.cpp"
+      cp "${file}" "${file}.orig"
+      sed -i -r 's,^(#include <sys/rseq\.h>)$,/* \1 */,' "${file}"
+      if diff -u "${file}.orig" "${file}"; then
+        echo "ERROR: This build workaround is no longer applicable, please remove it" 1>&2
+        exit 1
+      fi
+
+  - name: Clone patched source for BPF build
+    runs: |
+      mkdir bpf-build
+      tar cf - --exclude=bpf-build . | tar xC bpf-build
+
   - runs: |
       ffi_include_dir="$(pkg-config --cflags-only-I libffi | sed 's|^-I||g')"
       python_version=$(python${{vars.python-version}} -V | sed 's/.*\([0-9]\{1,\}\.[0-9]\{1,\}\)\..*/\1/')
 
+      if [ -d /usr/lib/oldglibc ]; then
+        C_INCLUDE_DIRS="/usr/lib/oldglibc/usr/include:/usr/include"
+      fi
+
       cmake -B output -G Ninja -S llvm -Wno-dev \
+        ${C_INCLUDE_DIRS:+-DC_INCLUDE_DIRS="${C_INCLUDE_DIRS}"} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=${{vars.llvm-prefix}} \
         -DCMAKE_PREFIX_PATH=${{vars.llvm-prefix}} \
@@ -93,6 +125,7 @@ pipeline:
         -DLLVM_APPEND_VC_REV=OFF \
         -DLLVM_INCLUDE_BENCHMARKS=OFF \
         -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang-${{vars.major-version}} \
+        -DCLANG_CONFIG_FILE_USER_DIR=~/.config/clang-${{vars.major-version}} \
         -DCLANG_ENABLE_ARCMT=ON \
         -DCLANG_ENABLE_STATIC_ANALYZER=ON \
         -DCLANG_LINK_CLANG_DYLIB=ON \
@@ -116,6 +149,12 @@ pipeline:
   - runs: |
       mkdir -p ${{targets.contextdir}}/usr/lib/cmake
       ln -s ${{vars.llvm-prefix}}/lib/cmake/llvm ${{targets.contextdir}}/usr/lib/cmake/llvm
+
+  - name: Symlink the LTO plugin for binutils
+    runs: |
+      # See https://llvm.org/docs/GoldPlugin.html
+      mkdir -p ${{targets.contextdir}}/usr/lib/bfd-plugins
+      ln -s ${{vars.llvm-prefix}}/lib/LLVMgold.so ${{targets.contextdir}}/usr/lib/bfd-plugins/LLVMgold.so
 
   - name: Cleanup installed MLIR .o files
     runs: |
@@ -155,6 +194,9 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/lib/
           mv ${{targets.destdir}}/${{vars.llvm-prefix}}/lib/$sonamefull ${{targets.contextdir}}/usr/lib/
           ln -sf ../../$sonamefull ${{targets.destdir}}/${{vars.llvm-prefix}}/lib/$sonamefull
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - name: compiler-rt-${{vars.major-version}}
     description: Clang ${{vars.major-version}} compiler runtime
@@ -182,6 +224,9 @@ subpackages:
           mv ${{targets.destdir}}/${{vars.clang-prefix}}/include/profile ${{targets.contextdir}}/${{vars.clang-prefix}}/include/
           mv ${{targets.destdir}}/${{vars.clang-prefix}}/include/sanitizer ${{targets.contextdir}}/${{vars.clang-prefix}}/include/
           mv ${{targets.destdir}}/${{vars.clang-prefix}}/include/xray ${{targets.contextdir}}/${{vars.clang-prefix}}/include/
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - name: clang-${{vars.major-version}}-analyzer
     description: Clang ${{vars.major-version}} analyzer
@@ -191,7 +236,11 @@ subpackages:
       runtime:
         - clang-${{vars.major-version}}=${{package.full-version}}
         - perl
-        - py3-clang-${{vars.major-version}}=${{package.full-version}}
+        # this package installs scripts that use a python3 shebang.
+        # until that changes, we need our /usr/bin/python3 to point
+        # to the version of python py3.x-clang was built for
+        - python-${{vars.python-version}}
+        - py${{vars.python-version}}-clang-${{vars.major-version}}=${{package.full-version}}
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}/${{vars.llvm-prefix}}/bin
@@ -318,15 +367,17 @@ subpackages:
             pp-trace --version
             pp-trace --help
 
-  - name: py3-clang-${{vars.major-version}}
+  - name: py${{vars.python-version}}-clang-${{vars.major-version}}
     description: Clang ${{vars.major-version}} Python bindings
     dependencies:
       provides:
-        - py3-clang=${{package.full-version}}
+        # Don't provide py3-clang - this is only built for 1 python version,
+        # and reverse dependencies need to know to use that same version
+        # to work correctly
+        - py${{vars.python-version}}-clang=${{package.full-version}}
       runtime:
         - libLLVM-${{vars.major-version}}=${{package.full-version}}
         - libclang-cpp-${{vars.major-version}}=${{package.full-version}}
-        - python-${{vars.python-version}}
     pipeline:
       - runs: |
           sitedir=$(python3 -c "import site; print(site.getsitepackages()[0])")
@@ -416,9 +467,17 @@ subpackages:
     test:
       pipeline:
         - uses: test/tw/ldd-check
+        - uses: test/compiler/smoke
+          with:
+            cc: clang
+            cxx: clang++
         - uses: test/compiler/hardening-check
           with:
             cc: clang-${{vars.major-version}}
+        - uses: test/compiler/clang
+          with:
+            cc: clang-${{vars.major-version}}
+            cxx: clang++
         - runs: |
             amdgpu-arch --version
             amdgpu-arch --help
@@ -438,6 +497,131 @@ subpackages:
             clang-nvlink-wrapper --help
             nvptx-arch --version
             nvptx-arch --help
+
+  - name: ${{package.name}}-bpf
+    description: Low-level virtual machine ${{vars.major-version}} - core frameworks - BPF variant
+    pipeline:
+      - working-directory: bpf-build
+        pipeline:
+          - name: Configure and compile BPF build
+            runs: |
+              if [ -d /usr/lib/oldglibc ]; then
+                # ftbfs in oldglibc environments, so
+                # we stub out this subpackage
+                exit 0
+              fi
+              cmake -B output -G Ninja -S llvm -Wno-dev \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=${{vars.llvm-prefix}} \
+              -DCMAKE_PREFIX_PATH=${{vars.llvm-prefix}} \
+              -DENABLE_LINKER_BUILD_ID=ON \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DLLVM_BUILD_DOCS=OFF \
+              -DLLVM_BUILD_EXAMPLES=OFF \
+              -DLLVM_BUILD_EXTERNAL_COMPILER_RT=OFF \
+              -DLLVM_BUILD_LLVM_DYLIB=OFF \
+              -DLLVM_BUILD_TESTS=OFF \
+              -DLLVM_INCLUDE_TESTS=OFF \
+              -DLLVM_DEFAULT_TARGET_TRIPLE="${{build.arch}}-unknown-linux-gnu" \
+              -DLLVM_BUILD_STATIC=ON \
+              -DLLVM_BUILD_RUNTIME=OFF \
+              -DLLVM_ENABLE_ASSERTIONS=OFF \
+              -DLLVM_ENABLE_FFI=OFF \
+              -DLLVM_ENABLE_LIBCXX=OFF \
+              -DLLVM_ENABLE_PIC=OFF \
+              -DLLVM_ENABLE_PROJECTS="clang" \
+              -DLLVM_TARGETS_TO_BUILD="BPF" \
+              -DLLVM_ENABLE_RTTI=OFF \
+              -DLLVM_ENABLE_SPHINX=OFF \
+              -DLLVM_ENABLE_TERMINFO=OFF \
+              -DLLVM_ENABLE_ZLIB=ON \
+              -DLLVM_INSTALL_UTILS=OFF \
+              -DLLVM_HOST_TRIPLE="${{build.arch}}-unknown-linux-gnu" \
+              -DLLVM_INCLUDE_EXAMPLES=OFF \
+              -DLLVM_LINK_LLVM_DYLIB=OFF \
+              -DLLVM_APPEND_VC_REV=OFF \
+              -DLLVM_INCLUDE_BENCHMARKS=OFF \
+              -DCLANG_CONFIG_FILE_SYSTEM_DIR=/etc/clang-${{vars.major-version}} \
+              -DCLANG_CONFIG_FILE_USER_DIR=~/.config/clang-${{vars.major-version}} \
+              -DCLANG_ENABLE_ARCMT=OFF \
+              -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+              -DCLANG_LINK_CLANG_DYLIB=OFF \
+              -DCLANG_PLUGIN_SUPPORT=OFF \
+              -DCLANG_VENDOR=Wolfi
+
+              cd output
+              ninja ${{vars.bpf-bins}}
+          - name: Install BPF toolchain
+            runs: |
+              mkdir -p ${{targets.contextdir}}/usr/bin
+              if [ -d /usr/lib/oldglibc ]; then
+                # ftbfs in oldglibc environments, so we populate it with
+                # dummy commands that do enough to pass the test phase
+                dummy_cmd="${{context.name}}-dummy"
+                dummy_dest="${{targets.contextdir}}/usr/bin/${dummy_cmd}"
+                cat <<'EOF' > "${dummy_dest}"
+              #!/bin/sh
+              echo "ERROR: Chainguard does not build ${{subpkg.name}} for oldglibc environments." 1>&2
+              echo "ERROR: This is a dummy ${0##*/} command, provided to pass package tests." 1>&2
+              while [ $# -gt 0 ]; do
+                case "${1}" in
+                  --version)
+                    echo "Dummy ${0##*/} version ${{package.version}}"
+                    ;;
+                  --help)
+                    echo "Sorry, I can't help you."
+                    ;;
+                  *)
+                    echo "ERROR: Command not implemented" 1>&2
+                    ;;
+                esac
+                shift
+              done
+              exit 1
+              EOF
+                chmod 755 "${dummy_dest}"
+                for cmd in ${{vars.bpf-bins}}; do
+                  ln -s "${dummy_cmd}" "${{targets.contextdir}}/usr/bin/${cmd}"
+                done
+                exit 0
+              fi
+
+              # non-oldglibc builds continue here
+              mkdir -p ${{targets.contextdir}}/${{vars.llvm-prefix}}/bin
+              mkdir -p ${{targets.contextdir}}/${{vars.clang-prefix}}/bin
+
+              # Install the LLVM binaries
+              for llvm_bin in ${{vars.bpf-bins}}; do
+                if [ "$llvm_bin" = "clang" ]; then
+                  # clang is handled below
+                  continue
+                fi
+                mv output/bin/"${llvm_bin}" ${{targets.contextdir}}/${{vars.llvm-prefix}}/bin/
+                ln -s ../lib/llvm-${{vars.major-version}}/bin/"${llvm_bin}" ${{targets.contextdir}}/usr/bin/"${llvm_bin}"
+              done
+
+              # Install the clang binaries
+              for clang_bin in clang; do
+                mv output/bin/"${clang_bin}-${{vars.major-version}}" ${{targets.contextdir}}/${{vars.clang-prefix}}/bin
+                ln -s "${clang_bin}-${{vars.major-version}}" ${{targets.contextdir}}/${{vars.clang-prefix}}/bin/"${clang_bin}"
+
+                ln -s ../lib/llvm-${{vars.major-version}}/lib/clang/${{vars.major-version}}/bin/"${clang_bin}-${{vars.major-version}}" ${{targets.contextdir}}/usr/bin/"${clang_bin}-${{vars.major-version}}"
+                ln -s ../lib/llvm-${{vars.major-version}}/lib/clang/${{vars.major-version}}/bin/"${clang_bin}" ${{targets.contextdir}}/usr/bin/"${clang_bin}"
+              done
+
+              # Create symlinks for the clang variants
+              for clang_ext in "++" "-cl" "-cpp"; do
+                ln -s "clang-${{vars.major-version}}" ${{targets.contextdir}}/${{vars.clang-prefix}}/bin/"clang${clang_ext}"
+              done
+          - uses: strip
+    test:
+      pipeline:
+        - uses: test/tw/ver-check
+          with:
+            bins: ${{vars.bpf-bins}}
+        - uses: test/tw/help-check
+          with:
+            bins: ${{vars.bpf-bins}}
 
   - name: lld-${{vars.major-version}}
     description: LLVM linker
@@ -464,6 +648,9 @@ subpackages:
 
   - name: lld-${{vars.major-version}}-static
     description: LLVM linker static libraries
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
     dependencies:
       provides:
         - lld-static=${{package.full-version}}
@@ -489,6 +676,9 @@ subpackages:
 
           mkdir -p ${{targets.contextdir}}/usr/lib/cmake
           mv ${{targets.destdir}}/${{vars.llvm-prefix}}/lib/cmake/lld ${{targets.contextdir}}/usr/lib/cmake/
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
 
   - name: libcxxabi1-${{vars.major-version}}
     description: LLVM libc++ ABI 1
@@ -528,6 +718,9 @@ subpackages:
 
   - name: libcxx1-${{vars.major-version}}-static
     description: Static library for LLVM libc++ 1
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
     dependencies:
       provides:
         - libcxx1-static=${{package.full-version}}
@@ -575,6 +768,9 @@ subpackages:
 
   - name: llvm-libunwind1-${{vars.major-version}}-static
     description: Static library for LLVM libunwind 1
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
     dependencies:
       provides:
         - llvm-libunwind-static=${{package.full-version}}
@@ -600,6 +796,9 @@ subpackages:
           mv ${{targets.destdir}}/${{vars.llvm-prefix}}/lib/${{build.arch}}-unknown-linux-gnu/libunwind.so ${{targets.contextdir}}/usr/lib/
           mv ${{targets.destdir}}/${{vars.llvm-prefix}}/include/*unwind* ${{targets.contextdir}}/usr/include/
           mv ${{targets.destdir}}/${{vars.llvm-prefix}}/include/mach-o/*unwind* ${{targets.contextdir}}/usr/include/mach-o/
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
 
   - name: libmlir-${{vars.major-version}}
     description: LLVM libmlir
@@ -684,6 +883,33 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.contextdir}}/${{vars.llvm-prefix}}/share/cmake/Modules
           cp -r ./cmake/Modules/* ${{targets.contextdir}}/${{vars.llvm-prefix}}/share/cmake/Modules/
+    test:
+      pipeline:
+        - name: Verify LLVM CMake macros are loadable
+          runs: |
+            tee /tmp/test.cmake << 'EOF'
+            set(LLVM_CMAKE_DIR "/usr/lib/llvm-${{vars.major-version}}/share/cmake/Modules")
+            if(NOT IS_DIRECTORY "${LLVM_CMAKE_DIR}")
+              message(FATAL_ERROR "LLVM CMake Modules directory not found: ${LLVM_CMAKE_DIR}")
+            endif()
+            file(GLOB modules "${LLVM_CMAKE_DIR}/*.cmake")
+            list(LENGTH modules count)
+            if("${count}" EQUAL 0)
+              message(FATAL_ERROR "No .cmake files found in ${LLVM_CMAKE_DIR}")
+            endif()
+            message(STATUS "Found ${count} CMake modules in ${LLVM_CMAKE_DIR}")
+            list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+            # LLVMVersion.cmake is included in this package and sets LLVM_VERSION_MAJOR
+            include(LLVMVersion)
+            if(NOT DEFINED LLVM_VERSION_MAJOR)
+              message(FATAL_ERROR "LLVM_VERSION_MAJOR not defined after including LLVMVersion")
+            endif()
+            if(NOT "${LLVM_VERSION_MAJOR}" EQUAL ${{vars.major-version}})
+              message(FATAL_ERROR "Expected LLVM_VERSION_MAJOR=${{vars.major-version}}, got ${LLVM_VERSION_MAJOR}")
+            endif()
+            message(STATUS "LLVM CMake macros verified successfully (version ${LLVM_VERSION_MAJOR})")
+            EOF
+            cmake -Wno-dev -P /tmp/test.cmake
 
   - name: ${{package.name}}-dev
     description: Development headers for LLVM ${{vars.major-version}}

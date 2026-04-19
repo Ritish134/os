@@ -1,12 +1,15 @@
 package:
   name: py3-google-crc32c
   version: "1.8.0"
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/py3-google-crc32c
   description: A python wrapper of the C library 'Google CRC32C'
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "6"
+    memory: 6Gi
 
 vars:
   pypi-package: google-crc32c
@@ -50,6 +53,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

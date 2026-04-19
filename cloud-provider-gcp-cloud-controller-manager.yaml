@@ -1,17 +1,34 @@
 package:
   name: cloud-provider-gcp-cloud-controller-manager
-  version: "35.0.0"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "35.0.5"
+  epoch: 6 # GHSA-hfvc-g4fc-pqhx
   description: cloud-provider-gcp contains several projects used to run Kubernetes in Google Cloud
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 10Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/kubernetes/cloud-provider-gcp
       tag: ccm/v${{package.version}}
-      expected-commit: 5efae2d228b66db5478bee2fba8a3dccd18c8a5b
+      expected-commit: 5ad4222f1d178e1386111fe41f635742b2604567
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+      modroot: providers
+      tidy: false
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
+      work: true
 
   - runs: |
       # Explicitly update go.work to use the installed Go version
@@ -20,27 +37,24 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: providers
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
-
-  - uses: go/bump
-    with:
-      deps: |-
         k8s.io/kubernetes@v1.33.2
-        golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
       modroot: test/e2e
       replaces: |-
-        k8s.io/mount-utils=k8s.io/mount-utils@v0.33.3 k8s.io/cri-client=k8s.io/cri-client@v0.33.3 k8s.io/dynamic-resource-allocation=k8s.io/dynamic-resource-allocation@v0.33.3 k8s.io/kube-scheduler=k8s.io/kube-scheduler@v0.33.3 k8s.io/csi-translation-lib=k8s.io/csi-translation-lib@v0.33.3
+        k8s.io/mount-utils=k8s.io/mount-utils@v0.33.3
+        k8s.io/cri-client=k8s.io/cri-client@v0.33.3
+        k8s.io/dynamic-resource-allocation=k8s.io/dynamic-resource-allocation@v0.33.3
+        k8s.io/kube-scheduler=k8s.io/kube-scheduler@v0.33.3
+        k8s.io/csi-translation-lib=k8s.io/csi-translation-lib@v0.33.3
+      tidy: false
 
   - uses: go/build
     with:
       packages: ./cmd/cloud-controller-manager
       output: cloud-controller-manager
+      ldflags: |
+        -X k8s.io/component-base/version.gitVersion=v${{package.version}}
 
 subpackages:
   - name: ${{package.name}}-compat
@@ -56,8 +70,9 @@ subpackages:
             - ${{package.name}}
       pipeline:
         - uses: test/tw/symlink-check
-        - runs: |
-            /cloud-controller-manager --help
+        - uses: test/tw/help-check
+          with:
+            bins: cloud-controller-manager
 
 # the repository has separate tags for the cloud-controller-manager, so
 # each binary has to be a separate package with separate update definition
@@ -71,6 +86,16 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        /usr/bin/cloud-controller-manager --help
-        /usr/bin/cloud-controller-manager --version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: cloud-controller-manager
+    - uses: test/tw/ver-check
+      with:
+        bins: cloud-controller-manager
+        version: ${{package.version}}
+
+environment:
+  contents:
+    packages:
+      - go-1.25

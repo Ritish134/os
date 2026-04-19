@@ -1,10 +1,13 @@
 package:
   name: py3-coloredlogs
   version: 15.0.1
-  epoch: 2
+  epoch: 4 # go/wolfi-rsc/py3-coloredlogs
   description: Simple cross-platform colored terminal text
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 vars:
   pypi-package: coloredlogs
@@ -49,6 +52,7 @@ subpackages:
             - py${{range.key}}-pip
             - py${{range.key}}-${{vars.pypi-package}}
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,13 +1,16 @@
 package:
   name: openjdk-8
-  version: 8.472.08 # this corresponds to same release as jdk8u472-ga - build number can be dropped with next GA release.
-  epoch: 1
+  version: "8.482" # this corresponds to same release as jdk8u472-ga - build number can be dropped with next GA release.
+  epoch: 6 # go/wolfi-rsc/openjdk-8
   description: "OpenJDK 8"
   copyright:
     - license: GPL-2.0-with-classpath-exception
   dependencies:
     runtime:
       - java-cacerts
+  resources:
+    cpu: "14"
+    memory: 16Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -79,13 +82,12 @@ pipeline:
     with:
       repository: https://github.com/openjdk/jdk8u.git
       tag: jdk8u${{vars.update-version}}-ga
-      expected-commit: d5ac2ad89a369697a48e7f3e6b889e22afa50a2f
+      expected-commit: cea3cd4c1d7aa70e998d45ca2e419793a550321e
 
   - uses: patch
     with:
       patches: |
         fix-as-needed-linking.patch
-        fix-build-with-glibc-2.42.patch
 
   - runs: chmod +x configure
 
@@ -152,6 +154,9 @@ subpackages:
     dependencies:
       runtime:
         - ${{package.name}}
+    test:
+      pipeline:
+        - uses: test/tw/debugpackage
 
   - name: "${{package.name}}-jre"
     description: "OpenJDK 8 Java Runtime Environment"
@@ -186,6 +191,11 @@ subpackages:
             mv "${{targets.destdir}}"/$_java_home/man \
                "${{targets.subpkgdir}}"/$_java_home
           fi
+    test:
+      pipeline:
+        - uses: test/tw/docs
+          with:
+            path-prefix: /usr/lib/jvm/java-1.8-openjdk
 
   - name: "${{package.name}}-demos"
     description: "OpenJDK 8 Demos"
@@ -195,6 +205,9 @@ subpackages:
           mkdir -p "${{targets.subpkgdir}}"/$_java_home
           mv "${{targets.destdir}}"/$_java_home/demo \
              "${{targets.subpkgdir}}"/$_java_home
+    test:
+      pipeline:
+        - uses: test/tw/byproductpackage
 
   - name: "${{package.name}}-default-jvm"
     description: "Use the openjdk-8 JVM as the default JVM"
@@ -268,19 +281,23 @@ test:
       uses: test/tw/ldd-check
       with:
         extra-library-paths: "/usr/lib/jvm/java-1.8-openjdk/jre/lib/amd64:/usr/lib/jvm/java-1.8-openjdk/jre/lib/amd64/server"
-    - name: "Java version Test"
-      runs: |
-        java -version
+    - uses: test/tw/ver-check
+      with:
+        bins: java
+        version: 1.8.0_${{vars.update-version}}
+        version-flag: -version
     # Test a basic Hello World
     - working-directory: basic
       runs: |
+        set -euo pipefail
         javac HelloWorld.java
-        java HelloWorld | grep -qi "Hello World!"
+        java HelloWorld | grep -Fi "Hello World!"
     # Test a basic HTTP connection
     - working-directory: basic
       runs: |
+        set -euo pipefail
         javac RequestTest.java
-        java RequestTest | grep -qi "Successfully connected to example.org"
+        java RequestTest | grep -Fi "Successfully connected to example.org"
     - working-directory: awt-regression
       runs: |
         javac SimpleAWTApp.java

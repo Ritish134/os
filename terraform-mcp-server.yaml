@@ -1,17 +1,26 @@
 package:
   name: terraform-mcp-server
-  version: "0.3.3"
-  epoch: 1 # CVE-2025-61729
+  version: "0.5.1"
+  epoch: 2 # GHSA-w8rr-5gcm-pp58
   description: Terraform MCP Server
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 3Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/hashicorp/terraform-mcp-server
-      expected-commit: 8fa297c0cc6d303295e0b3fa08a7c83dad67a2f5
+      expected-commit: 5ed24566b6c50adc68e8731d4c695202e96f0101
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp@v1.43.0
 
   - uses: go/build
     with:
@@ -20,6 +29,7 @@ pipeline:
         -X  terraform-mcp-server/version.GitCommit=$(git rev-parse HEAD)
         -X  terraform-mcp-server/version.BuildDate=$(date -u -d "@$SOURCE_DATE_EPOCH" +"%Y-%m-%dT%H:%M:%SZ")
       output: terraform-mcp-server
+      go-package: go-1.26
 
 update:
   enabled: true
@@ -34,3 +44,8 @@ test:
     - name: version test
       runs: |
         terraform-mcp-server -v | grep ${{package.version}}
+
+environment:
+  contents:
+    packages:
+      - go-1.26

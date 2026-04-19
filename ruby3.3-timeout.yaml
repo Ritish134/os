@@ -1,11 +1,14 @@
 package:
   name: ruby3.3-timeout
-  version: "0.6.0"
-  epoch: 0
+  version: "0.6.1"
+  epoch: 0 # go/wolfi-rsc/ruby3.3-timeout
   description: Auto-terminate potentially long-running operations in Ruby.
   copyright:
     - license: Ruby
     - license: BSD-2-Clause
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -20,7 +23,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: ab79dfff47092008ce08520763c846eba3a3a5f1
+      expected-commit: 951e8025ec02cce2d1c9dc5712c1ab37e383bd54
       repository: https://github.com/ruby/timeout
       tag: v${{package.version}}
 

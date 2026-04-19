@@ -1,13 +1,16 @@
 # Generated from https://pypi.org/project/filelock/
 package:
   name: py3-filelock
-  version: "3.20.2"
-  epoch: 0
+  version: "3.28.0"
+  epoch: 0 # go/wolfi-rsc/py3-filelock
   description: A platform independent file lock.
   copyright:
     - license: Unlicense
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 7Gi
 
 environment:
   contents:
@@ -37,7 +40,7 @@ pipeline:
     with:
       repository: https://github.com/benediktschmitt/py-filelock
       tag: ${{package.version}}
-      expected-commit: f2e7d4046b6a2b375a573bcfbad21827b99f8939
+      expected-commit: 55de20c0819652362881906fa289feff5a323c19
 
 subpackages:
   - range: py-versions
@@ -56,6 +59,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

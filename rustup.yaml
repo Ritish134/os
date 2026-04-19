@@ -1,10 +1,13 @@
 package:
   name: rustup
-  version: "1.28.2"
-  epoch: 2 # GHSA-xwfj-jgwm-7wp5
+  version: "1.29.0"
+  epoch: 3
   description: "rustup is an installer for the systems programming language Rust"
   copyright:
     - license: MIT
+  resources:
+    cpu: "8"
+    memory: 12Gi
 
 environment:
   contents:
@@ -17,7 +20,7 @@ environment:
       - make
       - openssl-dev
       - python3
-      - rust
+      - rust-1.94
       - wolfi-base
 
 pipeline:
@@ -26,15 +29,21 @@ pipeline:
     with:
       repository: https://github.com/rust-lang/rustup.git
       tag: ${{package.version}}
-      expected-commit: e4f3ad6f893e56ca10f0a329c401a5eafab69607
+      expected-commit: 28d1352dbcb436d3111c3594b9e1588e94950464
+
+  - uses: patch
+    with:
+      patches: |
+        tracing-subscriber-bump.patch
 
   - uses: rust/cargobump
 
-  - name: Configure and build
-    runs: |
-      cargo auditable build --release --features no-self-update --bin rustup-init
-      install -d "${{targets.destdir}}"/usr/bin
-      install -m755 target/release/rustup-init "${{targets.destdir}}"/usr/bin/
+  - uses: cargo/build
+    with:
+      output: rustup-init
+      opts: --release --features no-self-update --bin rustup-init
+
+  - runs: |
       ln -s /usr/bin/rustup-init "${{targets.destdir}}"/usr/bin/rustup
 
   - uses: strip
@@ -49,9 +58,18 @@ test:
   environment:
     contents:
       packages:
+        - binutils
         - curl
         - ca-certificates-bundle
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: rustup-init
+    - name: verify dynamic linking of openssl
+      runs: |
+        set -euo pipefail
+        readelf --dynamic /usr/bin/rustup-init | grep NEEDED | grep -E 'libssl|libcrypto'
     - name: "Test minimal rustup installation"
       runs: |
         # Non-interactive installation, minimal profile, no toolchain download

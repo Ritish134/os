@@ -1,7 +1,7 @@
 package:
   name: docker-compose
-  version: "5.0.1"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "5.1.3"
+  epoch: 0 # GHSA-hfvc-g4fc-pqhx
   description: Define and run multi-container applications with Docker
   copyright:
     - license: Apache-2.0
@@ -27,21 +27,27 @@ pipeline:
     with:
       repository: https://github.com/docker/compose
       tag: v${{package.version}}
-      expected-commit: c89b8a2d6b4495986b8e8227463895d7a0af680a
+      expected-commit: 977a4310f9f6d89d4b176fee01a5b7c109c1816a
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - runs: |
       mkdir -p ${{targets.destdir}}/usr/bin
       DESTDIR=${{targets.destdir}}/usr/bin/ make build
 
 test:
-  environment:
-    contents:
-      packages:
-        - docker-cli
   pipeline:
-    - runs: |
-        docker compose --help
-        docker-compose --version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: docker-compose
+    - uses: test/tw/ver-check
+      with:
+        bins: docker-compose
+        version: ${{package.version}}
 
 update:
   enabled: true

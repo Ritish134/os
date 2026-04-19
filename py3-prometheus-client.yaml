@@ -1,13 +1,16 @@
 # Generated from https://pypi.org/project/prometheus-client/
 package:
   name: py3-prometheus-client
-  version: "0.23.1"
-  epoch: 1
+  version: "0.25.0"
+  epoch: 0 # go/wolfi-rsc/py3-prometheus-client
   description: Python client for the Prometheus monitoring system.
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 vars:
   pypi-package: prometheus-client
@@ -33,7 +36,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 8746c49a76a7929795fab7b593b1c44dc8c972d2
+      expected-commit: 2cd1738fb880fd0e6aa9a02ec48585128388a6cd
       repository: https://github.com/prometheus/client_python
       tag: v${{package.version}}
 
@@ -54,6 +57,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

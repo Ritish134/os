@@ -1,33 +1,47 @@
 package:
   name: gitsign
-  version: "0.13.0"
-  epoch: 7 # CVE-2025-61729
+  version: "0.14.0"
+  epoch: 17 # GHSA-xm5m-wgh2-rrg3
   description: Keyless Git signing with Sigstore!
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   environment:
     CGO_ENABLED: "0"
+  contents:
+    packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sigstore/gitsign/
       tag: v${{package.version}}
-      expected-commit: b17948db1402b33caa005637f40e8df9eab56daf
+      expected-commit: dd51a25b4f9fa103ca6f5cdca4183fa15cb3e627
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/net@v0.38.0
-        github.com/cloudflare/circl@v1.6.1
-        golang.org/x/crypto@v0.45.0
+        filippo.io/edwards25519@v1.1.1
+        github.com/cloudflare/circl@v1.6.3
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        github.com/sigstore/timestamp-authority/v2@v2.0.6
 
   - uses: go/build
     with:
       packages: .
       output: gitsign
+      go-package: go-1.25
       ldflags: |
         -extldflags=-znow
         -extldflags=-zrelro
@@ -41,7 +55,7 @@ subpackages:
         with:
           packages: ./cmd/gitsign-credential-cache
           output: gitsign-credential-cache
-      - uses: strip
+          go-package: go-1.25
     test:
       pipeline:
         - runs: |
@@ -57,6 +71,9 @@ subpackages:
           git config --system gpg.x509.program gitsign  # Use gitsign for signing
           git config --system gpg.format x509           # gitsign expects x509 args
           cp /etc/gitconfig ${{targets.subpkgdir}}/etc
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
 
 update:
   enabled: true
@@ -64,8 +81,17 @@ update:
     identifier: sigstore/gitsign
     strip-prefix: v
 
-# test added by a robot (binary)
 test:
+  environment:
+    contents:
+      packages:
+        - git
   pipeline:
-    - runs: |
-        stat /usr/bin/gitsign
+    - uses: test/tw/ldd-check
+    - name: Verify gitsign version output
+      runs: |
+        gitsign version
+    - name: Verify gitsign help lists expected subcommands
+      runs: |
+        gitsign --help 2>&1 | grep -F "attest"
+        gitsign --help 2>&1 | grep -F "verify"

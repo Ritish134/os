@@ -1,10 +1,13 @@
 package:
   name: double-conversion
   version: "3.4.0"
-  epoch: 1
+  epoch: 3 # go/wolfi-rsc/double-conversion
   description: "Efficient binary-decimal and decimal-binary conversion routines for IEEE doubles"
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 environment:
   contents:
@@ -36,6 +39,8 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
+        - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
             packages: ${{subpkg.name}}

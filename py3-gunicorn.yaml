@@ -1,12 +1,15 @@
 package:
   name: py3-gunicorn
-  version: 23.0.0
-  epoch: 4
+  version: "25.3.0"
+  epoch: 0 # go/wolfi-rsc/py3-gunicorn
   description: WSGI HTTP Server for UNIX
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   pypi-package: gunicorn
@@ -32,7 +35,7 @@ pipeline:
     with:
       repository: https://github.com/benoitc/gunicorn
       tag: ${{package.version}}
-      expected-commit: 411986d6191114dd1d1bbb9c72c948dbf0ef0425
+      expected-commit: 9bce72cfc3985aba7e0c47bf3c00fa681b2847e4
 
 subpackages:
   - range: py-versions
@@ -40,6 +43,8 @@ subpackages:
     description: python${{range.key}} version of ${{vars.pypi-package}}
     dependencies:
       provider-priority: ${{range.value}}
+      runtime:
+        - py${{range.key}}-packaging
     pipeline:
       - uses: py/pip-build-install
         with:
@@ -51,6 +56,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

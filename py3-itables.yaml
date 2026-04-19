@@ -1,12 +1,15 @@
 package:
   name: py3-itables
-  version: "2.6.2"
-  epoch: 0
+  version: "2.7.3"
+  epoch: 1 # go/wolfi-rsc/py3-itables
   description: Interactive Tables in Jupyter
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 8Gi
 
 vars:
   pypi-package: itables
@@ -33,7 +36,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 8ea35daf6862f72267e4fb0482b40498e16c6e43
+      expected-commit: 215817c6f7c8d7dda1252b0fe04bd1ca399948a3
       repository: https://github.com/mwouts/itables
       tag: v${{package.version}}
 
@@ -63,6 +66,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

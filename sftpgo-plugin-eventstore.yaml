@@ -1,22 +1,25 @@
 package:
   name: sftpgo-plugin-eventstore
-  version: "1.0.22"
-  epoch: 2 # CVE-2025-61729
+  version: "1.0.23"
+  epoch: 3 # CVE-2026-32280
   description: "Stores SFTPGo events in supported database engines"
   copyright:
     - license: AGPL-3.0-only
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sftpgo/sftpgo-plugin-eventstore
       tag: v${{package.version}}
-      expected-commit: aa534b92df3c03aab4ae3b030e1dd90d468af5fa
+      expected-commit: 3a73e5dcedd8a8e990a533f862afded712a4b194
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
@@ -26,13 +29,20 @@ pipeline:
 
 test:
   pipeline:
-    # This is a plugin and meant to be run with the sftpgo service directly.
-    - name: Stat the plugin
-      runs: stat /usr/bin/sftpgo-plugin-eventstore
-    - name: Help output
-      runs: /usr/bin/sftpgo-plugin-eventstore --help
-    - name: Version output
-      runs: /usr/bin/sftpgo-plugin-eventstore --version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: sftpgo-plugin-eventstore
+    - uses: test/tw/ver-check
+      with:
+        bins: sftpgo-plugin-eventstore
+        version: ${{package.version}}
+    - name: Test serve subcommand availability
+      runs: |
+        set -euo pipefail
+        # Verify the plugin's primary 'serve' subcommand is registered and functional
+        # The serve command is the core entry point that starts the gRPC plugin server
+        sftpgo-plugin-eventstore serve --help 2>&1
 
 update:
   enabled: true

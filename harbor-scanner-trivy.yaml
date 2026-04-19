@@ -1,7 +1,7 @@
 package:
   name: harbor-scanner-trivy
-  version: "0.34.1"
-  epoch: 1 # CVE-2025-61729
+  version: "0.35.1"
+  epoch: 3 # CVE-2026-32280
   description: Use Trivy as a plug-in vulnerability scanner in the Harbor registry
   copyright:
     - license: Apache-2.0
@@ -9,11 +9,14 @@ package:
     runtime:
       - ca-certificates-bundle
       - trivy
+  resources:
+    cpu: "2"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: fbf78a1cae7f954a0e7a97185c8a69e1889c23d1
+      expected-commit: d2f5ee1a63099f432cdcf4b36542a59524f420a4
       repository: https://github.com/goharbor/harbor-scanner-trivy
       tag: v${{package.version}}
 
@@ -23,19 +26,31 @@ pipeline:
         github.com/redis/go-redis/v9@v9.6.3
         github.com/docker/docker@v28.0.0
         golang.org/x/net@v0.38.0
+        github.com/docker/cli@v29.2.0
 
   - uses: go/build
     with:
       packages: ./cmd/scanner-trivy
       output: scanner-trivy
-
-  - uses: strip
+      go-package: go-1.25
 
 test:
+  environment:
+    contents:
+      packages:
+        - curl
+        - wait-for-it
   pipeline:
-    - runs: |
-        # No version or help info
-        scanner-trivy & sleep 3; kill $!
+    - uses: test/tw/ldd-check
+    - uses: test/daemon-check-output
+      with:
+        start: /usr/bin/scanner-trivy
+        timeout: 30
+        expected_output: "Starting API server without TLS"
+        post: |
+          set -euo pipefail
+          wait-for-it localhost:8080 -t 10
+          curl -sf http://localhost:8080/api/v1/metadata | grep -F "scanner"
 
 update:
   enabled: true
@@ -44,3 +59,8 @@ update:
   github:
     identifier: goharbor/harbor-scanner-trivy
     strip-prefix: v
+
+environment:
+  contents:
+    packages:
+      - go-1.25

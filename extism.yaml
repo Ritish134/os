@@ -1,10 +1,13 @@
 package:
   name: extism
   version: "1.6.3"
-  epoch: 4 # GHSA-j5w8-q4qc-rx2x
+  epoch: 12 # go/wolfi-rsc/extism
   description: The extism CLI is used to manage Extism installations
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
@@ -16,13 +19,14 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
-        github.com/cloudflare/circl@v1.6.1
         golang.org/x/crypto@v0.45.0
+        github.com/cloudflare/circl@v1.6.3
 
   - uses: go/build
     with:
       packages: ./extism/main.go
       output: extism
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -32,9 +36,15 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         extism -v
         extism lib install
         extism lib versions
         extism --version
         extism --help
+
+environment:
+  contents:
+    packages:
+      - go-1.25

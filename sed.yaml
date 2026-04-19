@@ -1,10 +1,13 @@
 package:
   name: sed
   version: "4.9"
-  epoch: 7
+  epoch: 10 # use git/gnulib-bootstrap pipeline
   description: "GNU stream editor"
   copyright:
     - license: GPL-3.0-or-later
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 environment:
   contents:
@@ -27,12 +30,7 @@ pipeline:
       tag: v${{package.version}}
       expected-commit: 7e2e575a36bc88c0f3f3d6d8083c5f5b0ed44009
 
-  - name: git.savannah.gnu.org is flaky
-    runs: git submodule set-url gnulib https://github.com/coreutils/gnulib.git
-
-  - runs: echo ${{package.version}} >.tarball-version
-
-  - runs: ./bootstrap
+  - uses: git/gnulib-bootstrap
 
   - uses: autoconf/configure
 
@@ -55,3 +53,32 @@ test:
     - runs: |
         sed --version
         sed --help
+    - name: Test basic substitution
+      runs: |
+        set -euo pipefail
+        echo 'hello world' | sed 's/hello/goodbye/' | grep -F 'goodbye world'
+    - name: Test line deletion
+      runs: |
+        set -euo pipefail
+        result=$(printf 'line1\nline2\nline3\n' | sed '2d')
+        count=$(echo "$result" | grep -c '.')
+        [ "$count" -eq 2 ] || { echo "FAIL: Expected 2 lines, got $count"; exit 1; }
+        echo "$result" | grep -F 'line1'
+        echo "$result" | grep -F 'line3'
+    - name: Test regex pattern matching
+      runs: |
+        set -euo pipefail
+        echo 'abc123def' | sed 's/[0-9]\+/NUM/' | grep -F 'abcNUMdef'
+    - name: Test in-place editing
+      runs: |
+        set -euo pipefail
+        echo 'original' > /tmp/test.txt
+        sed -i 's/original/modified/' /tmp/test.txt
+        grep -F 'modified' /tmp/test.txt
+    - name: Test multi-command expressions
+      runs: |
+        set -euo pipefail
+        result=$(printf 'a\nb\nc\n' | sed -e 's/a/A/' -e 's/c/C/')
+        echo "$result" | grep -F 'A'
+        echo "$result" | grep -F 'b'
+        echo "$result" | grep -F 'C'

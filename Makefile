@@ -29,12 +29,13 @@ MELANGE_OPTS += --repository-append ${REPO}
 MELANGE_OPTS += --keyring-append ${KEY}.pub
 MELANGE_OPTS += --signing-key ${KEY}
 MELANGE_OPTS += --arch ${ARCH}
-MELANGE_OPTS += --env-file build-${ARCH}.env
+MELANGE_OPTS += --env-file build-common.env --env-file build-${ARCH}.env
 MELANGE_OPTS += --namespace wolfi
 MELANGE_OPTS += --license 'Apache-2.0'
 MELANGE_OPTS += --git-repo-url 'https://github.com/wolfi-dev/os'
 MELANGE_OPTS += --cache-dir ${CACHEDIR}
 MELANGE_OPTS += --pipeline-dir ./pipelines/
+MELANGE_OPTS += --package-append busybox
 MELANGE_OPTS += ${MELANGE_EXTRA_OPTS}
 
 # Enter interactive mode on failure for debug
@@ -68,8 +69,8 @@ WOLFI_REPO ?= https://packages.wolfi.dev/os
 WOLFI_KEY ?= https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
 BOOTSTRAP ?= no
 
-SOURCE_DATE_EPOCH := $(shell git --no-pager log -1 --pretty=%ct || echo no-git)
-ifeq ($(SOURCE_DATE_EPOCH),no-git)
+SOURCE_DATE_EPOCH := $(shell git --no-pager log -1 --pretty=%ct 2>/dev/null || jj log -r @ --no-graph -T 'committer.timestamp().utc().format("%s")' 2>/dev/null || echo 0)
+ifeq ($(SOURCE_DATE_EPOCH),0)
 $(error setting SOURCE_DATE_EPOCH failed - $(SOURCE_DATE_EPOCH))
 endif
 export SOURCE_DATE_EPOCH
@@ -107,15 +108,6 @@ clean:
 clean-cache:
 	rm -rf ${CACHEDIR}
 
-${CACHEDIR}/.libraries_token.txt: cache
-	tmpf=$(shell mktemp); \
-	chainctl auth login --audience libraries.cgr.dev; \
-	chainctl auth token --audience libraries.cgr.dev > $${tmpf}; \
-	mv $${tmpf} ${CACHEDIR}/.libraries_token.txt
-
-.PHONY: lib-token
-lib-token: ${CACHEDIR}/.libraries_token.txt
-
 .PHONY: fetch-kernel
 fetch-kernel:
 	rm -rf kernel/$(ARCH)
@@ -129,9 +121,9 @@ kernel/%/APKINDEX: kernel/%/APKINDEX.tar.gz
 	touch $@
 
 kernel/%/chosen: kernel/%/APKINDEX
-	# Extract lines with 'P:linux-qemu-generic' and the following line that contains the version
+	# Extract lines with 'P:linux-qemu-melange' and the following line that contains the version
 	# This approach is compatible with both GNU and BSD sed
-	awk '/^P:linux-qemu-generic$$/ {print; getline; print}' $< > kernel/$*/available
+	awk '/^P:linux-qemu-melange$$/ {print; getline; print}' $< > kernel/$*/available
 	grep '^V:' kernel/$*/available | sed 's/V://' | \
 	  sort -V | tail -n1 > $@.tmp
 	# Sanity check that this looks like an apk version
@@ -139,7 +131,7 @@ kernel/%/chosen: kernel/%/APKINDEX
 	mv $@.tmp $@
 
 kernel/%/linux.apk: kernel/%/chosen
-	@$(call authget,apk.cgr.dev,$@,$(QEMU_KERNEL_REPO)/$*/linux-qemu-generic-$(shell cat kernel/$*/chosen).apk)
+	@$(call authget,apk.cgr.dev,$@,$(QEMU_KERNEL_REPO)/$*/linux-qemu-melange-$(shell cat kernel/$*/chosen).apk)
 
 kernel/%/vmlinuz: kernel/%/linux.apk
 	tmpd=kernel/.$$$$ && mkdir -p $$tmpd $(dir $@) && \
@@ -197,15 +189,6 @@ $(testdbg_targets): test-debug/%: cache $(KEY) $(QEMU_KERNEL_DEP)
 	$(eval pkgver := $(shell $(MELANGE) package-version $(yamlfile)))
 	@printf "Testing package $* with version $(pkgver) from file $(yamlfile)\n"
 	$(MELANGE) test $(yamlfile) $(MELANGE_TEST_OPTS) $(MELANGE_DEBUG_TEST_OPTS) --source-dir ./$(*)/
-
-# Please do not print any additional content via this target
-# so that we can parse output directly with jq
-compile_targets = $(foreach name,$(pkgs),compile/$(name))
-$(compile_targets): compile/%:
-	@$(MAKE) $(KEY) >/dev/null 2>&1
-	@mkdir -p ./$(*)/
-	$(eval yamlfile := $*.yaml)
-	@$(MELANGE) compile $(yamlfile) $(MELANGE_OPTS) --source-dir ./$(*)/
 
 .PHONY: dev-container
 dev-container:

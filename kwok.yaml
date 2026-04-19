@@ -1,10 +1,13 @@
 package:
   name: kwok
   version: "0.7.0"
-  epoch: 6 # GHSA-j5w8-q4qc-rx2x
+  epoch: 19 # GHSA-pc3f-x583-g7j2
   description: Kubernetes WithOut Kubelet - Simulates thousands of Nodes and Clusters.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "8"
+    memory: 9Gi
 
 pipeline:
   - uses: git-checkout
@@ -17,13 +20,16 @@ pipeline:
     with:
       deps: |-
         golang.org/x/crypto@v0.45.0
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/moby/spdystream@v0.5.1
 
   - uses: go/build
     with:
       packages: ./cmd/kwok
       output: kwok
-
-  - uses: strip
+      go-package: go-1.25
 
 subpackages:
   - name: "kwokctl"
@@ -32,12 +38,17 @@ subpackages:
         with:
           packages: ./cmd/kwokctl
           output: kwokctl
-      - uses: strip
+          go-package: go-1.25
     test:
       pipeline:
-        - runs: |
-            kwokctl --version
-            kwokctl --help
+        - uses: test/tw/ldd-check
+        - uses: test/tw/ver-check
+          with:
+            bins: kwokctl
+            version: ${{package.version}}
+        - uses: test/tw/help-check
+          with:
+            bins: kwokctl
 
 update:
   enabled: true
@@ -71,11 +82,22 @@ test:
         # Basic check that we have nodes
         kubectl wait --for=condition=Ready nodes --all
 
-        # Basic check that the deployment controller creates a pod
+        # Basic check that the deployment controller creates a pod and becomes ready
         kubectl create deploy foo --image=foo
-        sleep 5
-        kubectl wait --for=condition=Ready po --all
+        kubectl wait --for=condition=Available deploy/foo --timeout=60s
+        kubectl wait --for=condition=Ready po --all --timeout=60s
 
         kwokctl delete cluster
-        kwok --version
-        kwok --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: kwok
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: kwok
+
+environment:
+  contents:
+    packages:
+      - go-1.25

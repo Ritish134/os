@@ -1,7 +1,7 @@
 package:
   name: fzf
-  version: "0.67.0"
-  epoch: 1 # CVE-2025-47910
+  version: "0.71.0"
+  epoch: 1 # CVE-2026-27140
   description: A command-line fuzzy finder
   copyright:
     - license: MIT
@@ -13,14 +13,14 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/junegunn/fzf
       tag: v${{package.version}}
-      expected-commit: 2ab923f3ae04d5e915e5ff4a9cd3bd515bfd1ea5
+      expected-commit: 62899fd74eb4f5a12ca973d30fb356431d68f9c2
 
   - uses: go/build
     with:

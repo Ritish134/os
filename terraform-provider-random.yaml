@@ -1,36 +1,34 @@
 package:
   name: terraform-provider-random
-  version: "3.7.2"
-  epoch: 6 # CVE-2025-61729
+  version: "3.8.1"
+  epoch: 9 # CVE-2026-32280
   description: Utility provider that supports the use of randomness within Terraform configurations.
   copyright:
     - license: MPL-2.0
   dependencies:
     runtime:
       - terraform-local-provider-config
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: bc2ddb552b4676d16997987a9bf2875c7b98d342
+      expected-commit: de3700a633e45ff8d1b8277ba8a422f80945dfb7
       repository: https://github.com/hashicorp/terraform-provider-random
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: tools
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       output: terraform-provider-random
       packages: .
+      go-package: go-1.25
       vendor: "true"
 
   - runs: |
@@ -46,6 +44,81 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - terraform
   pipeline:
-    - runs: |
-        terraform-provider-random --help
+    - uses: test/tw/ldd-check
+    - name: Verify provider plugin protocol handshake
+      runs: |
+        # Terraform providers output a plugin protocol message when run without args
+        # The binary exits non-zero when invoked directly; capture output separately
+        output=$(terraform-provider-random 2>&1 || true)
+        echo "$output" | grep -iF "plugin"
+    - name: Verify provider mirror symlink structure
+      uses: test/tw/symlink-check
+      with:
+        allow-absolute: true
+    - name: Functional test with terraform apply
+      runs: |
+        set -euo pipefail
+
+        # Create a working directory for terraform
+        mkdir -p /tmp/tf-test
+        cd /tmp/tf-test
+
+        # Create a Terraform configuration using the random provider
+        tee main.tf <<'EOF'
+        terraform {
+          required_providers {
+            random = {
+              source  = "hashicorp/random"
+              version = "${{package.version}}"
+            }
+          }
+        }
+
+        resource "random_string" "test" {
+          length  = 16
+          special = false
+        }
+
+        resource "random_integer" "test" {
+          min = 1
+          max = 100
+        }
+
+        resource "random_uuid" "test" {
+        }
+
+        output "random_string" {
+          value = random_string.test.result
+        }
+
+        output "random_integer" {
+          value = random_integer.test.result
+        }
+
+        output "random_uuid" {
+          value = random_uuid.test.result
+        }
+        EOF
+
+        # Initialize terraform using the local provider mirror
+        terraform init -plugin-dir=/terraform/provider-mirror
+
+        # Apply the configuration and capture output
+        terraform apply -auto-approve
+
+        # Verify outputs were generated
+        terraform output random_string | grep -E '.{16}'
+        terraform output random_integer | grep -E '^[0-9]+$'
+        terraform output random_uuid | grep -E '[0-9a-f-]{36}'
+
+        echo "SUCCESS: All random resources generated correctly"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

@@ -1,6 +1,6 @@
 package:
   name: pg-partman-16
-  version: "5.4.0"
+  version: "5.4.3"
   epoch: 0
   description: PostgreSQL 14 partition management extension
   copyright:
@@ -28,7 +28,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 56a81503994ec5b22eb255f0d97af9fe6d11c4b5
+      expected-commit: a12b23ee6615d179dfaa38cc6fed8ed44cd61ba2
       repository: https://github.com/pgpartman/pg_partman
       tag: v${{package.version}}
 

@@ -1,10 +1,13 @@
 package:
   name: libbsd
   version: 0.12.2
-  epoch: 3
+  epoch: 7 # go/wolfi-rsc/libbsd
   description: commonly-used BSD functions not implemented by all libcs
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -15,12 +18,14 @@ environment:
       - busybox
       - ca-certificates-bundle
       - libmd-dev
+      - libtool
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: b88cc9163d0c652aaf39a99991d974ddba1c3a9711db8f1b5838af2a14731014
-      uri: https://libbsd.freedesktop.org/releases/libbsd-${{package.version}}.tar.xz
+      repository: https://gitlab.freedesktop.org/libbsd/libbsd
+      tag: ${{package.version}}
+      expected-commit: 04a24db27ad1572f766bad772cdd9c146e6d9cf0
 
   - uses: autoconf/configure
 
@@ -41,6 +46,7 @@ subpackages:
     description: libbsd dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
 
   - name: libbsd-doc
@@ -57,6 +63,37 @@ update:
     identifier: 1567
 
 test:
+  environment:
+    contents:
+      packages:
+        - libbsd-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
     - uses: test/no-docs
+    - name: Compile and link against libbsd
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <bsd/string.h>
+        #include <stdio.h>
+
+        int main() {
+            char dst[32];
+            size_t len;
+
+            len = strlcpy(dst, "hello libbsd", sizeof(dst));
+            if (len != 12) {
+                fprintf(stderr, "FAIL: expected len=12, got len=%zu\n", len);
+                return 1;
+            }
+
+            printf("strlcpy returned %zu, dst='%s'\n", len, dst);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libbsd) test.c -o test $(pkg-config --libs libbsd)
+        ./test

@@ -1,17 +1,20 @@
 #nolint:valid-pipeline-git-checkout-tag
 package:
   name: go-discover
-  version: "0_git20251222"
-  epoch: 0 # GHSA-4f99-4q7p-p3gh
+  version: "0_git20260413"
+  epoch: 0 # CVE-2026-32280
   description: go-discover is a Go (golang) library and command line tool to discover ip addresses of nodes in cloud environments based on meta information like tags provided by the environment.
   copyright:
     - license: MPL-2.0
+  resources:
+    cpu: "3"
+    memory: 5Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/hashicorp/go-discover
-      expected-commit: cbcd12d07640254d749de7852a4722ba3c17e655
+      expected-commit: af02dbc355bc5f4b35044742b3618dcbd6426bdb
       branch: master
 
   - uses: go/build
@@ -28,7 +31,37 @@ update:
 
 test:
   pipeline:
-    - name: Verify help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: discover
+    - name: Test provider discovery logic
       runs: |
-        discover --help
-        discover version
+        set -euo pipefail
+
+        # Test that discover properly parses provider configuration and
+        # attempts discovery. Without valid credentials, it should fail
+        # with a meaningful error (non-zero exit) rather than crash/panic.
+        if discover addrs provider=os 2>/tmp/discover-err.txt; then
+          echo "FAIL: Expected non-zero exit without credentials"
+          exit 1
+        fi
+
+        # Verify the tool produced error output (not a silent failure or panic)
+        if [ ! -s /tmp/discover-err.txt ]; then
+          echo "FAIL: Expected error output from discover"
+          exit 1
+        fi
+
+        # Ensure no Go panic occurred (would indicate broken wiring)
+        if grep -F "panic:" /tmp/discover-err.txt; then
+          echo "FAIL: discover panicked instead of returning an error"
+          exit 1
+        fi
+
+        echo "SUCCESS: discover correctly handled provider config and returned error"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

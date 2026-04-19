@@ -1,7 +1,7 @@
 package:
   name: lazydocker
-  version: "0.24.3"
-  epoch: 0 # CVE-2025-61725
+  version: "0.25.0"
+  epoch: 3 # CVE-2026-32280
   description: The lazier way to manage everything docker
   copyright:
     - license: MIT
@@ -11,7 +11,12 @@ pipeline:
     with:
       repository: https://github.com/jesseduffield/lazydocker
       tag: v${{package.version}}
-      expected-commit: f4fc3669ca8eb67aa350a76503397192bf26f057
+      expected-commit: 2ebe3848d67720f641c1f2ff2a7fe0a7bcaf9422
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/docker/cli@v29.2.0
 
   - uses: go/build
     with:
@@ -31,6 +36,16 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        lazydocker --version
-        lazydocker --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: lazydocker
+    - uses: test/tw/ver-check
+      with:
+        bins: lazydocker
+        version: ${{package.version}}
+
+environment:
+  contents:
+    packages:
+      - go-1.25

@@ -1,10 +1,16 @@
 package:
   name: tfsec
   version: "1.28.14"
-  epoch: 9 # CVE-2025-61729
+  epoch: 28 # GHSA-xmrv-pmrh-hhx2
   description: Security scanner for your Terraform code
   copyright:
     - license: MIT
+  resources:
+    cpu: "3"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -13,7 +19,7 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
@@ -25,24 +31,36 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
+        google.golang.org/grpc@v1.79.3
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
         golang.org/x/oauth2@v0.27.0
         github.com/open-policy-agent/opa@v1.4.0
-        github.com/cloudflare/circl@v1.6.1
-        github.com/hashicorp/go-getter@v1.7.9
+        github.com/hashicorp/go-getter@v1.8.6
         github.com/ulikunitz/xz@v0.5.14
         golang.org/x/crypto@v0.45.0
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/cloudflare/circl@v1.6.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/go-jose/go-jose/v4@v4.1.4
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
+      replaces: |-
+        github.com/go-viper/mapstructure/v2=github.com/go-viper/mapstructure/v2@v2.3.0
 
   - uses: go/build
     with:
       packages: ./cmd/tfsec
       output: tfsec
-      ldflags: -X github.com/aquasecurity/tfsec/version.Version=v${{package.version}} -extldflags '-fno-PIC -static'
+      ldflags: -X github.com/aquasecurity/tfsec/version.Version=v${{package.version}}
 
   - uses: go/build
     with:
       packages: ./cmd/tfsec-checkgen
       output: tfsec-checkgen
-      ldflags: -X github.com/aquasecurity/tfsec/version.Version=v${{package.version}} -extldflags '-fno-PIC -static'
+      ldflags: -X github.com/aquasecurity/tfsec/version.Version=v${{package.version}}
 
 update:
   enabled: true

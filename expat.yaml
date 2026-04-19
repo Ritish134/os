@@ -1,10 +1,13 @@
 package:
   name: expat
-  version: "2.7.3"
-  epoch: 0
+  version: "2.7.5"
+  epoch: 1 # go/wolfi-rsc/expat
   description: "XML SAX Parser library written in C"
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -12,24 +15,30 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
+      - cmake
+      - samurai
+
+var-transforms:
+  - from: ${{package.version}}
+    match: \.
+    replace: _
+    to: mangled-version
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://downloads.sourceforge.net/project/expat/expat/${{package.version}}/expat-${{package.version}}.tar.bz2
-      expected-sha256: 59c31441fec9a66205307749eccfee551055f2d792f329f18d97099e919a3b2f
+      repository: https://github.com/libexpat/libexpat
+      tag: R_${{vars.mangled-version}}
+      expected-commit: f31adfd584b7f6c50bbf4d22eb928538ffc9145a
 
-  - name: Configure
-    runs: |
-      ./configure \
-         --host=${{host.triplet.gnu}} \
-         --target=${{host.triplet.gnu}} \
-         --prefix=/usr \
-         --datadir=/usr/share
-
-  - uses: autoconf/make
-
-  - uses: autoconf/make-install
+  - runs: |
+      cmake -B build -G Ninja \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCMAKE_BUILD_TYPE=Release \
+        expat
+      cmake --build build
+      DESTDIR="${{targets.destdir}}" cmake --install build
 
   - uses: strip
 
@@ -40,6 +49,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -59,12 +69,15 @@ subpackages:
       - uses: split/manpages
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/emptypackage
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 770
+  github:
+    identifier: libexpat/libexpat
+    strip-prefix: R_
+    tag-filter-prefix: R_
+  version-separator: "_"
 
 test:
   environment:
@@ -74,11 +87,12 @@ test:
         - expat-dev
         - posix-libc-utils
   pipeline:
-    - name: "Check expat version"
-      runs: |
-        xmlwf -v | grep ${{package.version}}
-        xmlwf --version
-        xmlwf --help
+    - uses: test/tw/ver-check
+      with:
+        bins: xmlwf
+    - uses: test/tw/help-check
+      with:
+        bins: xmlwf
     - name: "Compile and run simple XML parsing test"
       runs: |
         cat > test.c << EOF

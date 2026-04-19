@@ -1,12 +1,18 @@
 package:
   name: opentelemetry-cpp
-  version: "1.24.0"
-  epoch: 1
+  version: "1.26.0"
+  epoch: 5
   description: The OpenTelemetry C++ Client
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -18,7 +24,6 @@ environment:
   contents:
     packages:
       - abseil-cpp-dev
-      - benchmark-dev
       - busybox
       - c-ares-dev
       - cmake
@@ -28,7 +33,7 @@ environment:
       - grpc-dev
       - icu-dev
       - make
-      - openssl-dev
+      - openssl-hardened-dev
       - pkgconf
       - protobuf-dev
       - re2-dev
@@ -39,7 +44,7 @@ pipeline:
     with:
       repository: https://github.com/open-telemetry/opentelemetry-cpp
       tag: v${{package.version}}
-      expected-commit: a7b100834dce58c949ab9bdfccdf1613db460d1c
+      expected-commit: 2d80af1b1d26e300d9c0f7f51fa360f22c773523
 
   - uses: cmake/configure
     with:
@@ -56,7 +61,7 @@ pipeline:
         -DBUILD_SHARED_LIBS=ON \
         -DOTELCPP_VERSIONED_LIBS=ON \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DWITH_ABSEIL=ON
+        -DWITH_BENCHMARK=OFF
 
   - uses: cmake/build
 
@@ -69,10 +74,18 @@ subpackages:
     pipeline:
       - uses: split/lib
     test:
+      environment:
+        contents:
+          packages:
+            - opentelemetry-cpp-dev
+            - abseil-cpp-dev
+            - build-base
+            - pkgconf
       pipeline:
         - uses: test/tw/ldd-check
         - name: "verify .so files exist"
           runs: |
+            set -euo pipefail
             dir="/usr/lib"
             name="*.so"
             if ! find "${dir}" -name "${name}" -type f | grep -q . ; then
@@ -80,6 +93,34 @@ subpackages:
               exit 1
             fi
             echo "PASS: some ${name} files found in ${dir}"
+        - name: "compile-and-link test"
+          runs: |
+            set -euo pipefail
+
+            tee test.cpp <<'EOF'
+            #include <opentelemetry/version.h>
+            #include <opentelemetry/nostd/string_view.h>
+            #include <iostream>
+
+            int main() {
+                // Verify the version header is accessible and has expected macros
+                std::cout << "OpenTelemetry C++ version: "
+                          << OPENTELEMETRY_VERSION << std::endl;
+
+                // Test nostd::string_view basic functionality
+                opentelemetry::nostd::string_view sv("hello");
+                if (sv.size() != 5) {
+                    std::cerr << "FAIL: unexpected string_view size" << std::endl;
+                    return 1;
+                }
+
+                std::cout << "PASS: OpenTelemetry C++ library is usable" << std::endl;
+                return 0;
+            }
+            EOF
+
+            g++ $(pkg-config --cflags opentelemetry_api) test.cpp -o test $(pkg-config --libs opentelemetry_api)
+            ./test
 
   - name: opentelemetry-cpp-dev
     description: The OpenTelemetry C++ Client development files
@@ -90,11 +131,14 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
+        - uses: test/tw/ldd-check
 
 test:
   pipeline:
-    - uses: test/tw/byproductpackage
+    - uses: test/tw/ldd-check
+    - uses: test/tw/emptypackage
 
 update:
   enabled: true

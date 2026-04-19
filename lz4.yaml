@@ -1,10 +1,13 @@
 package:
   name: lz4
   version: 1.10.0
-  epoch: 6
+  epoch: 8 # go/wolfi-rsc/lz4
   description: "lossless high performance compression algorithm"
   copyright:
     - license: BSD-2-Clause AND GPL-2.0-only
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 environment:
   contents:
@@ -40,7 +43,7 @@ subpackages:
       - uses: split/infodir
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
   - name: "lz4-static"
     description: "lz4 static library"
@@ -48,8 +51,7 @@ subpackages:
       - uses: split/static
     test:
       pipeline:
-        - runs: |
-            test -s /usr/lib/liblz4.a
+        - uses: test/tw/staticpackage
 
   - name: "lz4-dev"
     description: "lz4 development headers"
@@ -57,6 +59,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -88,3 +91,25 @@ test:
         lz4cat --help
         unlz4 --help
     - uses: test/no-docs
+    - name: Functional compression/decompression round-trip test
+      runs: |
+        set -euo pipefail
+
+        # Create test data with known content
+        echo "The quick brown fox jumps over the lazy dog. LZ4 compression test data." > /tmp/input.txt
+
+        # Test compression with lz4
+        lz4 /tmp/input.txt /tmp/compressed.lz4
+        stat /tmp/compressed.lz4
+
+        # Test decompression with unlz4
+        unlz4 /tmp/compressed.lz4 /tmp/output.txt
+        diff /tmp/input.txt /tmp/output.txt
+
+        # Test decompression with lz4 -d
+        rm /tmp/output.txt
+        lz4 -d /tmp/compressed.lz4 /tmp/output.txt
+        diff /tmp/input.txt /tmp/output.txt
+
+        # Test stdin/stdout pipeline mode
+        echo "pipeline test data" | lz4 | lz4 -d | grep -F "pipeline test data"

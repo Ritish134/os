@@ -1,8 +1,8 @@
 package:
   name: filebrowser
-  version: "2.53.1"
+  version: "2.63.2"
   description: "Web File Browser"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  epoch: 0 # CVE-2026-32280
   copyright:
     - license: Apache-2.0
 
@@ -10,6 +10,7 @@ environment:
   contents:
     packages:
       - ca-certificates-bundle
+      - go-1.25
       - jq
       - mailcap
       - nodejs-${{vars.node-version}}
@@ -25,7 +26,7 @@ pipeline:
     with:
       repository: https://github.com/filebrowser/filebrowser.git
       tag: v${{package.version}}
-      expected-commit: 94ec786d34aaaa924ed34719d4a972520f7fecb5
+      expected-commit: 7970c26cbcb8c7dc8abf12f95fe2b97d6c89d577
 
   - name: install-npm-dependencies
     working-directory: frontend
@@ -54,7 +55,7 @@ pipeline:
     pipeline:
       - runs: |
           mkdir -p ${{targets.destdir}}/config
-          mkdir -p ${{targets.destdir}}/databaseAdd commentMore actions
+          mkdir -p ${{targets.destdir}}/database
           cp -ar docker/common/* ${{targets.destdir}}/
           cp -ar docker/alpine/* ${{targets.destdir}}/
 
@@ -73,25 +74,36 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}
-          ln -sf /usr/bin/filebrowser ${{targets.contextdir}}/
-    # test added by a robot (compat)
+          ln -sf usr/bin/filebrowser ${{targets.contextdir}}/filebrowser
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: |
-            readlink -v /filebrowser
+        - uses: test/tw/symlink-check
 
 test:
   environment:
     contents:
       packages:
+        - curl
+        - jq
+        - tini
         - wait-for-it
-        - ${{package.name}}-compat
+        - wget
     environment:
       TINI_SUBREAPER: true
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: filebrowser
+    - uses: test/tw/ver-check
+      with:
+        bins: filebrowser
+        version: ${{package.version}}
     - runs: |
-        filebrowser --help
-        filebrowser version | grep ${{package.version}}
         stat /healthcheck.sh
         stat /init.sh
     - name: check health status
@@ -102,8 +114,9 @@ test:
         expected_output: |
           Listening on
         post: |
-          wait-for-it -t 10 --strict localhost:8080 -- echo "Server is up"Add commentMore actions
-          curl -sf http://localhost:8080/health | grep "OK"
+          set -euo pipefail
+          wait-for-it -t 10 --strict localhost:80 -- echo "Server is up"
+          curl -sf http://localhost:80/health | grep -F "OK"
           /healthcheck.sh
 
 update:

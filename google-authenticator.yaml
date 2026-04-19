@@ -1,10 +1,13 @@
 package:
   name: google-authenticator
   version: "1.11"
-  epoch: 1
+  epoch: 4 # add set -euo pipefail to pipe test
   description: Google Authenticator PAM module
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 environment:
   contents:
@@ -16,7 +19,7 @@ environment:
       - linux-pam-dev
       - m4
       - openssf-compiler-options
-      - openssl-dev
+      - openssl-hardened-dev
 
 pipeline:
   - uses: git-checkout
@@ -64,4 +67,5 @@ test:
     - uses: test/tw/ldd-check
     - name: Init new key test
       runs: |
-        yes -1 | google-authenticator --time-based --disallow-reuse --force --rate-limit=3 --rate-time=30 --window-size=3
+        set -euo pipefail
+        echo "-1" | google-authenticator --time-based --disallow-reuse --force --rate-limit=3 --rate-time=30 --window-size=3

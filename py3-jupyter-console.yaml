@@ -1,12 +1,15 @@
 package:
   name: py3-jupyter-console
   version: 6.6.3
-  epoch: 2
+  epoch: 4 # go/wolfi-rsc/py3-jupyter-console
   description: A terminal-based console frontend for Jupyter kernels.
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 vars:
   pypi-package: jupyter-console
@@ -44,12 +47,14 @@ subpackages:
     description: ${{vars.pypi-package}} installed for python${{range.key}}
     dependencies:
       runtime:
+        - py${{range.key}}-ipykernel
+        - py${{range.key}}-ipython
         - py${{range.key}}-jupyter-client
         - py${{range.key}}-jupyter-core
+        - py${{range.key}}-prompt-toolkit
         - py${{range.key}}-pygments
         - py${{range.key}}-pyzmq
         - py${{range.key}}-traitlets
-        - py${{range.key}}-prompt-toolkit
     pipeline:
       - uses: py/pip-build-install
         with:
@@ -61,6 +66,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

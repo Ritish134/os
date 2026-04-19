@@ -1,10 +1,13 @@
 package:
   name: rustls-ffi
-  version: "0.15.0"
-  epoch: 3
+  version: "0.15.2"
+  epoch: 0 # add test/tw/devpackage to -dev subpackage test
   description: "C-to-rustls bindings"
   copyright:
     - license: MIT
+  resources:
+    cpu: "4"
+    memory: 9Gi
 
 environment:
   contents:
@@ -15,7 +18,7 @@ environment:
       - ca-certificates-bundle
       - cargo-auditable
       - cargo-c
-      - rust
+      - rust-1.94
       - wolfi-base
 
 pipeline:
@@ -23,7 +26,7 @@ pipeline:
     with:
       repository: https://github.com/rustls/rustls-ffi
       tag: v${{package.version}}
-      expected-commit: cfbe10551f526d59d56e06d25984a9f95baa06ec
+      expected-commit: ff0e9d37c1ea18134d77f5ccb706cafe3bf00924
 
   - uses: rust/cargobump
 
@@ -40,6 +43,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:

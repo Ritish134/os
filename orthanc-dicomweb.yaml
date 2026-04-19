@@ -1,13 +1,16 @@
 package:
   name: orthanc-dicomweb
-  version: "1.22"
-  epoch: 1
+  version: "1.23"
+  epoch: 0 # go/wolfi-rsc/orthanc-dicomweb
   description: DICOMweb plugin for Orthanc DICOM server - RESTful DICOM services
   copyright:
     - license: AGPL-3.0-or-later
   dependencies:
     runtime:
       - orthanc
+  resources:
+    cpu: "9"
+    memory: 24Gi
 
 vars:
   python-version: "3.13"
@@ -33,7 +36,7 @@ pipeline:
   - uses: fetch
     with:
       uri: https://orthanc.uclouvain.be/downloads/sources/orthanc-dicomweb/OrthancDicomWeb-${{package.version}}.tar.gz
-      expected-sha256: 6c0fccf0b7d4abc983b1c2664a8fc267772cc1617c411d17c96f60fed54dafb7
+      expected-sha256: d86d1727e90fcfcd25f94e45f0d1f53053795b3ac8fa0d479fd32a17e09afd9f
 
   - uses: cmake/configure
     with:
@@ -103,7 +106,7 @@ test:
         post: |
           # Test DICOMweb endpoints
           curl -s http://localhost:18050/dicom-web/studies | grep -q "\\[\\]" && echo "QIDO-RS studies endpoint working"
-          curl -s "http://localhost:18050/wado?requestType=WADO" && echo "WADO-URI endpoint accessible" || echo "WADO-URI endpoint responded"
+          curl -s -o /dev/null "http://localhost:18050/wado?requestType=WADO" && echo "WADO-URI endpoint responded"
 
 update:
   enabled: true

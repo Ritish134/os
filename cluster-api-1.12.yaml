@@ -1,20 +1,32 @@
 package:
   name: cluster-api-1.12
-  version: "1.12.1"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "1.12.5"
+  epoch: 1 # GHSA-hfvc-g4fc-pqhx
   description: Cluster API meta package
   dependencies:
     provides:
       - cluster-api=${{package.full-version}}
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "4"
+    memory: 14Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: b9b906573c236b661c2b9565be6fefcdecfc99d2
+      expected-commit: efc7142fa2ca086e4e2392640affa22f47cbcc11
       repository: https://github.com/kubernetes-sigs/cluster-api
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+      modroot: |-
+        .
+        hack/tools
+        test
 
 data:
   - name: backends-go-builds
@@ -171,3 +183,8 @@ update:
   git:
     tag-filter-prefix: v1.12
     strip-prefix: v
+
+environment:
+  contents:
+    packages:
+      - go-1.25

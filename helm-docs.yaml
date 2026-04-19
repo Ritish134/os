@@ -1,13 +1,16 @@
 package:
   name: helm-docs
   version: 1.14.2
-  epoch: 17 # CVE-2025-61729
+  epoch: 22 # GHSA-hr2v-4r36-88hr
   description: A tool for automatically generating markdown documentation for helm charts
   copyright:
     - license: GPL-3.0-only
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -28,8 +31,8 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
-        helm.sh/helm/v3@v3.18.5
         golang.org/x/crypto@v0.45.0
+        helm.sh/helm/v3@v3.20.2
 
   - runs: |
       make helm-docs

@@ -1,7 +1,7 @@
 package:
   name: wildfly
-  version: "38.0.1"
-  epoch: 1 # GHSA-84h7-rjj3-6jx4
+  version: "39.0.1"
+  epoch: 4
   description: WildFly Application Server
   copyright:
     - license: Apache-2.0
@@ -14,6 +14,9 @@ package:
       - grep
       - procps
       - sed
+  resources:
+    cpu: "4"
+    memory: 16Gi
 
 data:
   - name: openjdk-versions
@@ -36,7 +39,7 @@ pipeline:
     with:
       repository: https://github.com/wildfly/wildfly
       tag: ${{package.version}}.Final
-      expected-commit: 41db8793853161f908aaeea4c72645c6d65f30fa
+      expected-commit: 03e3cf27d1a2f05b504e6ec649eeb14f3d68e18e
 
   - uses: maven/pombump
 
@@ -68,10 +71,12 @@ subpackages:
         - uses: test/tw/ldd-check
         - name: version tests
           runs: |
+            set -euo pipefail
             /usr/share/wildfly/bin/domain.sh --version | grep ${{package.version}}
             /usr/share/wildfly/bin/jboss-cli.sh version
         - name: Test Wildfly with OpenJDK ${{range.key}}
           runs: |
+            set -euo pipefail
             /usr/share/wildfly/bin/standalone.sh > /dev/null 2>&1 &
             sleep 10
             url=http://localhost:8080
@@ -85,7 +90,7 @@ subpackages:
               echo "Got empty HTML content from $url"
               exit 1
             fi
-            echo "$html" | grep -q "Welcome to WildFly" || {
+            echo "$html" | grep -qF "Welcome to WildFly" || {
               echo "response from $url did not contain \"Welcome to WildFly\""
               exit 1
             }

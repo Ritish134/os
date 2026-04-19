@@ -1,12 +1,15 @@
 package:
   name: py3-sqlparse
   version: "0.5.5"
-  epoch: 0
+  epoch: 3
   description: A non-validating SQL parser.
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "4"
+    memory: 4Gi
 
 vars:
   pypi-package: sqlparse
@@ -54,6 +57,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -76,21 +80,11 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/
           mv ./cleanup/${{range.key}}/bin ${{targets.contextdir}}/usr/
     test:
-      environment:
-        contents:
-          packages:
-            - apk-tools
       pipeline:
         - runs: |
-            apk info -L py${{range.key}}-${{vars.pypi-package}}-bin > "pkg.list"
-            echo "Please write a test for these:"
-            grep usr/bin/ pkg.list > bins.list
-            sed 's,^,> ,' bins.list
-
-            while read line; do
-              echo "== $line =="
-              /"$line" --help || :
-            done < bins.list
+            sqlformat --version
+            echo "SELECT id, name FROM users WHERE id = 1;" | sqlformat --reindent -
+            echo "select id,name from users where id=1;" | sqlformat --reindent - | grep -i "SELECT"
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.

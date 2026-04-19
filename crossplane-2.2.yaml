@@ -1,0 +1,74 @@
+package:
+  name: crossplane-2.2
+  version: "2.2.0"
+  epoch: 8 # GHSA-xm5m-wgh2-rrg3
+  description: Cloud Native Control Planes
+  dependencies:
+    provides:
+      - crossplane=${{package.full-version}}
+  copyright:
+    - license: Apache-2.0
+
+pipeline:
+  - uses: git-checkout
+    with:
+      expected-commit: b7aa9852801ca9959eefdad8233f95635df348c2
+      repository: https://github.com/crossplane/crossplane
+      tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        github.com/sigstore/timestamp-authority/v2@v2.0.6
+
+  - runs: |
+      mkdir -p ${{targets.destdir}}/crds
+      cp cluster/crds/* ${{targets.destdir}}/crds
+
+      mkdir -p ${{targets.destdir}}/webhookconfigurations
+      cp cluster/webhookconfigurations/* ${{targets.destdir}}/webhookconfigurations
+
+  - uses: go/build
+    with:
+      output: crossplane
+      packages: ./cmd/crossplane
+      ldflags: -X github.com/crossplane/crossplane/v2/internal/version.version=v${{package.version}}
+
+subpackages:
+  - name: ${{package.name}}-crank
+    dependencies:
+      provides:
+        - crossplane-crank=${{package.full-version}}
+    pipeline:
+      - uses: go/build
+        with:
+          output: crank
+          packages: ./cmd/crank
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: crank
+
+update:
+  enabled: true
+  github:
+    identifier: crossplane/crossplane
+    strip-prefix: v
+    tag-filter-prefix: v2.2
+
+test:
+  pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: crossplane
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: crossplane

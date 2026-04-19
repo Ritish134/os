@@ -1,10 +1,13 @@
 package:
   name: rancher-telemetry
   version: 0.6.2
-  epoch: 7 # CVE-2025-61729
+  epoch: 15 # CVE-2026-32280
   description: Rancher telemetry daemon
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
@@ -22,17 +25,37 @@ pipeline:
 
   - uses: go/build
     with:
+      go-package: go-1.25
       ldflags: -X main.Version={{package.version}}
       output: telemetry
       packages: .
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         telemetry -v
         telemetry --version
         telemetry --help
         # This binary needs rancher server up and running and currently its not possible to run it here since we don't have rancher packaged yet.
+    - name: Verify telemetry binary handles missing server gracefully
+      uses: test/daemon-check-output
+      with:
+        start: /usr/bin/telemetry
+        expected_output: "."
+        timeout: "10"
+        error_strings: ""
+        post: |
+          # Verify the binary is a valid executable and produced startup output
+          test -x /usr/bin/telemetry
+    - uses: test/qackage
+      with:
+        exception: |
+          The rancher-telemetry daemon requires a running Rancher server to perform
+          its core functionality of collecting and reporting telemetry data. Full
+          functional testing (data collection, reporting, API interaction) cannot be
+          performed without a live Rancher server infrastructure, which is not
+          available in the ephemeral test environment.
 
 update:
   enabled: true
@@ -40,3 +63,8 @@ update:
     identifier: rancher/telemetry
     strip-prefix: v
     use-tag: true
+
+environment:
+  contents:
+    packages:
+      - go-1.25

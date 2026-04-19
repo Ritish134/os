@@ -1,22 +1,26 @@
 package:
   name: nfpm
-  version: "2.44.1"
-  epoch: 0 # CVE-2025-61729
+  version: "2.46.3"
+  epoch: 0 # CVE-2026-32280
   description: nFPM is a simple, 0-dependencies, deb, rpm, apk and arch linux packager written in Go
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/goreleaser/nfpm
       tag: v${{package.version}}
-      expected-commit: 550e42704eca6101275853cdf6ba20bd09d755c0
+      expected-commit: dbae6d52f782080e1a0203e704603f0a37b19f8f
 
   - uses: go/build
     with:
       packages: ./cmd/nfpm
       output: nfpm
+      go-package: go-1.25
       ldflags: |-
         -X main.version=v${{package.version}}
         -X main.commit=$(git rev-parse HEAD)
@@ -31,10 +35,14 @@ update:
 
 test:
   pipeline:
-    - name: version check
-      runs: |
-        nfpm --version
-        nfpm --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: nfpm
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: nfpm
     - name: Test init command
       runs: |
         # Create a test directory
@@ -48,9 +56,9 @@ test:
         test -f nfpm.yaml && echo "nfpm.yaml created successfully"
 
         # Check that the config contains expected fields
-        grep -q "name:" nfpm.yaml && echo "Found name field"
-        grep -q "arch:" nfpm.yaml && echo "Found arch field"
-        grep -q "version:" nfpm.yaml && echo "Found version field"
+        grep -F "name:" nfpm.yaml && echo "Found name field"
+        grep -F "arch:" nfpm.yaml && echo "Found arch field"
+        grep -F "version:" nfpm.yaml && echo "Found version field"
     - name: Test JSON schema generation
       runs: |
         # Generate JSON schema
@@ -58,14 +66,14 @@ test:
 
         # Verify schema was generated and contains expected content
         test -s schema.json && echo "JSON schema generated successfully"
-        grep -q '"$schema"' schema.json && echo "Schema contains $schema field"
-        grep -q '"properties"' schema.json && echo "Schema contains properties"
+        grep -F '"$schema"' schema.json && echo "Schema contains $schema field"
+        grep -F '"properties"' schema.json && echo "Schema contains properties"
     - name: Test package command with basic config
       runs: |
         cd test-nfpm
 
         # Create a simple nfpm config
-        cat <<EOF > test.yaml
+        cat <<'EOF' > test.yaml
         name: test-package
         arch: amd64
         platform: linux
@@ -95,7 +103,7 @@ test:
         # Test bash completion
         nfpm completion bash > bash_completion.sh
         test -s bash_completion.sh && echo "Bash completion generated"
-        grep -q "nfpm" bash_completion.sh && echo "Completion contains nfpm commands"
+        grep -F "nfpm" bash_completion.sh && echo "Completion contains nfpm commands"
 
         # Test zsh completion
         nfpm completion zsh > zsh_completion.sh
@@ -107,12 +115,12 @@ test:
     - name: Test package command with invalid config
       runs: |
         # Create an invalid config (missing required fields)
-        cat <<EOF > invalid.yaml
+        cat <<'EOF' > invalid.yaml
         description: Invalid package
         EOF
 
         # This should fail - verify it fails appropriately
-        if nfpm pkg --config invalid.yaml --packager deb --target invalid.deb 2>/dev/null; then
+        if nfpm pkg --config invalid.yaml --packager deb --target invalid.deb; then
           echo "ERROR: Should have failed with invalid config"
           exit 1
         else
@@ -124,11 +132,11 @@ test:
         export TEST_VERSION="2.0.0"
         export TEST_NAME="env-test-package"
 
-        cat <<EOF > env-test.yaml
-        name: \${TEST_NAME}
+        cat <<'EOF' > env-test.yaml
+        name: ${TEST_NAME}
         arch: amd64
         platform: linux
-        version: \${TEST_VERSION}
+        version: ${TEST_VERSION}
         maintainer: Test User
         description: Test package with env vars
         license: MIT
@@ -137,3 +145,8 @@ test:
         # Package with environment variable expansion
         nfpm pkg --config env-test.yaml --packager deb --target env-test.deb
         test -f env-test.deb && echo "Package with env vars created successfully"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

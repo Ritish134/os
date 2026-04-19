@@ -1,23 +1,42 @@
 package:
   name: frp
-  version: "0.66.0"
-  epoch: 0 # GHSA-g754-hx8w-x2g6
+  version: "0.68.1"
+  epoch: 0 # CVE-2026-32280
   description: A fast reverse proxy to help you expose a local server behind a NAT or firewall to the internet.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 5Gi
+
+environment:
+  contents:
+    packages:
+      - go-1.25
+      - nodejs
+      - npm
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: a1348cdf00e938a3b5075a75e340f1ed003af9b7
+      expected-commit: 4ec8de973f52a1cabde54ad3499216cf1bc3dbaf
       repository: https://github.com/fatedier/frp
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
         github.com/quic-go/quic-go@v0.57.0
+        github.com/go-jose/go-jose/v4@v4.1.4
+
+  - name: Build web assets
+    runs: |
+      for component in frps frpc; do
+        cd web/${component}
+        npm install
+        npm run build
+        cd ../..
+      done
 
   - uses: go/build
     with:

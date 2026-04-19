@@ -1,7 +1,7 @@
 package:
   name: flux-kustomize-controller
-  version: "1.7.3"
-  epoch: 3 # GHSA-j5w8-q4qc-rx2x
+  version: "1.8.3"
+  epoch: 1 # GHSA-hfvc-g4fc-pqhx
   description: The GitOps Toolkit Kustomize reconciler
   copyright:
     - license: Apache-2.0
@@ -31,26 +31,38 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.26
   environment:
     CGO_ENABLED: "0"
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 090c49bdb679f827353d1658a7ab60a168dbb3a5
+      expected-commit: 8e935221142a41b7f354c0a233cdfe6eed9bcea0
       repository: https://github.com/fluxcd/kustomize-controller
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        golang.org/x/net@v0.51.0
+      modroot: api
+
+  - uses: go/bump
+    with:
+      deps: |-
+        filippo.io/edwards25519@v1.1.1
+        github.com/cloudflare/circl@v1.6.3
+        golang.org/x/net@v0.51.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
       ldflags: -X main.Version=${{package.version}}
       output: kustomize-controller
+      go-package: go-1.26
       packages: .
 
 subpackages:

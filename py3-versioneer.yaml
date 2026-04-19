@@ -1,12 +1,15 @@
 package:
   name: py3-versioneer
   version: '0.29'
-  epoch: 7
+  epoch: 10 # go/wolfi-rsc/py3-versioneer
   description: Easy VCS-based management of project version strings
   copyright:
     - license: Unlicense
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 vars:
   pypi-package: versioneer
@@ -33,10 +36,11 @@ environment:
       - wolfi-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 5ab283b9857211d61b53318b7c792cf68e798e765ee17c27ade9f6c924235731
-      uri: https://files.pythonhosted.org/packages/source/v/versioneer/versioneer-${{package.version}}.tar.gz
+      repository: https://github.com/python-versioneer/python-versioneer
+      tag: ${{package.version}}
+      expected-commit: 28c613dbef5fce09dc3ba6b1baa811c2d76b2245
 
 subpackages:
   - range: py-versions
@@ -57,6 +61,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -96,8 +101,8 @@ subpackages:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 221177
+  github:
+    identifier: python-versioneer/python-versioneer
 
 test:
   pipeline:

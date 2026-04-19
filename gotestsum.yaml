@@ -1,10 +1,13 @@
 package:
   name: gotestsum
   version: "1.13.0"
-  epoch: 2 # CVE-2025-61729
+  epoch: 6 # CVE-2026-27140
   description: go test runner with output optimized for humans
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
@@ -114,3 +117,8 @@ test:
         # Test with package-based rerun
         gotestsum --rerun-fails=1 --rerun-fails-report=rerun.txt || true
         test -f rerun.txt && echo "Rerun report created successfully"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

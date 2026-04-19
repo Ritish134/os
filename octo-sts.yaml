@@ -1,18 +1,28 @@
 package:
   name: octo-sts
-  version: "0.5.4"
-  epoch: 0 # CVE-2025-61729
+  version: "0.6.0"
+  epoch: 0 # GHSA-w8rr-5gcm-pp58
   description: A GitHub App that acts like a Security Token Service (STS) for the Github API.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 pipeline:
   - uses: git-checkout
     with:
       destination: octo-sts
-      expected-commit: 4248ebeae83df812fdae4097a7755076f0803e37
+      expected-commit: fe4742c487aa1a103ae3c7a2f7b6156fd3b37d8a
       repository: https://github.com/octo-sts/app
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.43.0
+      modroot: octo-sts
+      tidy: false
 
   - uses: go/build
     with:
@@ -29,9 +39,38 @@ subpackages:
           modroot: octo-sts
           output: webhook
           packages: ./cmd/webhook
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
+        - name: Verify webhook binary is functional
+          runs: |
+            set -euo pipefail
+
+            # Verify the webhook binary exists and is executable
+            stat /usr/bin/webhook
+            test -x /usr/bin/webhook
+
+            # Attempt to run the webhook binary - it should fail with a config error
+            # but this proves the binary is a valid executable that can be invoked
+            ! webhook 2>&1
 
 update:
   enabled: true
   github:
     identifier: octo-sts/app
     strip-prefix: v
+
+test:
+  pipeline:
+    - uses: test/tw/ldd-check
+    - name: Verify octo-sts binary is functional
+      runs: |
+        set -euo pipefail
+
+        # Verify the octo-sts binary exists and is executable
+        stat /usr/bin/octo-sts
+        test -x /usr/bin/octo-sts
+
+        # Attempt to run the octo-sts binary - it should fail with a config error
+        # but this proves the binary is a valid executable that can be invoked
+        ! octo-sts 2>&1

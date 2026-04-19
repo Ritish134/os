@@ -1,10 +1,13 @@
 package:
   name: py3-gguf
-  version: 0.17.1
-  epoch: 3
+  version: "0.18.0"
+  epoch: 1
   description: Python package for writing binary files in the GGUF format
   copyright:
     - license: MIT
+  resources:
+    cpu: "4"
+    memory: 8Gi
 
 vars:
   pypi-package: gguf
@@ -32,7 +35,7 @@ pipeline:
     with:
       repository: https://github.com/ggml-org/llama.cpp
       tag: gguf-v${{package.version}}
-      expected-commit: 381174bbdaf10d6a80dc2099f284b20544d86962
+      expected-commit: 8387ffb28d3467b81bc73727588c3fde772f8ebe
 
 subpackages:
   - range: py-versions
@@ -41,8 +44,9 @@ subpackages:
     dependencies:
       runtime:
         - py${{range.key}}-numpy-2.2
-        - py${{range.key}}-tqdm
         - py${{range.key}}-pyyaml
+        - py${{range.key}}-requests
+        - py${{range.key}}-tqdm
     pipeline:
       - working-directory: gguf-py
         uses: py/pip-build-install
@@ -51,6 +55,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

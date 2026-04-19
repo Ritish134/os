@@ -1,25 +1,32 @@
 package:
   name: kor
-  version: "0.6.6"
-  epoch: 1 # CVE-2025-61729
+  version: "0.6.7"
+  epoch: 9 # CVE-2026-32280
   description: A Golang Tool to discover unused Kubernetes Resources
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
+
+environment:
+  contents:
+    packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/yonahd/kor
       tag: v${{package.version}}
-      expected-commit: 71e4db7ff4146842ce5c34c65a407ef6d491f2a7
+      expected-commit: cbd4f6b9b559599353cfb37c65b0878df25c2981
 
   - uses: go/build
     with:
       modroot: .
       packages: .
       output: kor
-
-  - uses: strip
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -35,21 +42,16 @@ test:
       packages:
         - jq
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - name: Create config map
       runs: |
         kubectl create configmap my-config --from-literal=key1=config1 --from-literal=key2=config2
     - name: Check if the config map is found
       runs: |
-        length=$(kor configmaps -o json | jq -r ".default.ConfigMap | length")
-        if [[ $length != "1" ]]  ; then
-          echo "config map not found, found=$length"
-          exit 1
-        fi
+        set -euo pipefail
+        kor configmaps -o json | jq -e '.default.ConfigMap | length == 1'
     - name: Check config map name
       runs: |
-        cm_name=$(kor configmaps -o json | jq -r ".default.ConfigMap[0]")
-        if [[ $cm_name != "my-config" ]]  ; then
-          echo "config map not found, name=$cm_name"
-          exit 1
-        fi
+        set -euo pipefail
+        kor configmaps -o json | jq -e '.default.ConfigMap[0] == "my-config"'

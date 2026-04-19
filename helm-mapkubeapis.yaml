@@ -1,10 +1,13 @@
 package:
   name: helm-mapkubeapis
   version: 0.6.1
-  epoch: 7 # CVE-2025-61729
+  epoch: 14 # GHSA-hr2v-4r36-88hr
   description: Helm plugin to map and update deprecated Kubernetes APIs in Helm release manifests
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 7Gi
 
 pipeline:
   - uses: git-checkout
@@ -17,9 +20,10 @@ pipeline:
     with:
       deps: |-
         golang.org/x/oauth2@v0.27.0
-        helm.sh/helm/v3@v3.18.5
         github.com/containerd/containerd@v1.7.29
         golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        helm.sh/helm/v3@v3.20.2
 
   # Dropping helm plugins in /usr/libexec since they are binaries and
   # configuration intended to be run by the helm command.
@@ -58,6 +62,7 @@ test:
       HELM_PLUGINS: "/usr/libexec/helm-plugins"
   pipeline:
     - runs: |
+        set -euo pipefail
         helm env
         helm plugin list 2>&1 | grep -i 'mapkubeapis'
     - uses: test/kwok/cluster
@@ -100,3 +105,8 @@ test:
           deprecated or removed APIs to supported versions, completed successfully
         post: |
           echo "Successfully test passed"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

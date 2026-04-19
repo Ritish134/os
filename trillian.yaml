@@ -1,31 +1,40 @@
 package:
   name: trillian
-  version: "1.7.2"
-  epoch: 7 # GHSA-j5w8-q4qc-rx2x
+  version: "1.7.3"
+  epoch: 4 # GHSA-vffh-x6r8-xx99
   description: Merkle tree implementation used in Sigstore
   copyright:
     - license: Apache-2.0
   checks:
     disabled:
       - empty
+  resources:
+    cpu: "4"
+    memory: 9Gi
+  test-resources:
+    cpu: "2"
+    memory: 7Gi
 
 environment:
   contents:
     packages:
       - build-base
       - busybox
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/google/trillian
       tag: v${{package.version}}
-      expected-commit: e7aca3cc3a83e222540555ca75ecc87cffccdd53
+      expected-commit: 16c60b37edba51aca4d29f2f82463dae0a90f014
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/prometheus/prometheus@v0.311.2-0.20260410083055-07c6232d159b
 
 subpackages:
   - name: ${{package.name}}-logserver
@@ -36,6 +45,12 @@ subpackages:
           packages: ./cmd/trillian_log_server
           output: trillian_log_server
       - uses: strip
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: trillian_log_server
+            expect-contains: "Usage of trillian_log_server:"
 
   - name: ${{package.name}}-logsigner
     pipeline:
@@ -45,6 +60,12 @@ subpackages:
           packages: ./cmd/trillian_log_signer
           output: trillian_log_signer
       - uses: strip
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: trillian_log_signer
+            expect-contains: "Usage of trillian_log_signer:"
 
 test:
   environment:

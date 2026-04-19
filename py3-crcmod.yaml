@@ -1,12 +1,15 @@
 package:
   name: py3-crcmod
   version: '1.7'
-  epoch: 9
+  epoch: 11 # go/wolfi-rsc/py3-crcmod
   description: Cyclic Redundancy Check (CRC) implementation in Python
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 vars:
   pypi-package: crcmod
@@ -53,6 +56,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

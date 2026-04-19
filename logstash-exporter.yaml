@@ -1,14 +1,20 @@
 package:
   name: logstash-exporter
   version: "1.9.1"
-  epoch: 3 # CVE-2025-61725
+  epoch: 8 # CVE-2026-32280
   description: Prometheus exporter for Logstash written in Go
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 environment:
   environment:
     GITHUB_REPO: "github.com/kuskoman/logstash-exporter"
+  contents:
+    packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout

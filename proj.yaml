@@ -1,11 +1,14 @@
 # Generated from https://git.alpinelinux.org/aports/plain/community/proj/APKBUILD
 package:
   name: proj
-  version: "9.7.1"
-  epoch: 0
+  version: "9.8.1"
+  epoch: 0 # go/wolfi-rsc/proj
   description: PROJ coordinate transformation software library
   copyright:
     - license: MIT
+  resources:
+    cpu: "6"
+    memory: 18Gi
 
 environment:
   contents:
@@ -28,7 +31,7 @@ pipeline:
     with:
       repository: https://github.com/OSGeo/PROJ
       tag: ${{package.version}}
-      expected-commit: e37c81729a6c52e3ee49ad6ae5bed8f1ab7826e5
+      expected-commit: f08fa86c478c4bbbf003b1ec751dd84aa6eca486
 
   - uses: cmake/configure
     with:
@@ -78,6 +81,7 @@ subpackages:
     description: proj dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -97,8 +101,10 @@ test:
         which cs2cs
         which projinfo
         set -e
-        projinfo -h 2>&1 | grep -qi "usage"
-        cs2cs 2>&1 | grep -qi "usage"
+        output=$(projinfo -h 2>&1 || true)
+        echo "$output" | grep -qi "usage"
+        output=$(cs2cs 2>&1 || true)
+        echo "$output" | grep -qi "usage"
         set +e
     - name: Test coordinate transformation using cs2cs
       runs: |

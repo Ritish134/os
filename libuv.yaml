@@ -1,10 +1,13 @@
 package:
   name: libuv
-  version: "1.51.0"
-  epoch: 2
+  version: "1.52.1"
+  epoch: 1 # go/wolfi-rsc/libuv
   description: "cross-platform asynchronous I/O library"
   copyright:
     - license: MIT AND ISC
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -21,7 +24,7 @@ pipeline:
     with:
       repository: https://github.com/libuv/libuv.git
       tag: v${{package.version}}
-      expected-commit: 5152db2cbfeb5582e9c27c5ea1dba2cd9e10759b
+      expected-commit: 1cfa32ff59c076ffb6ed735bbc8c18361558661f
 
   - runs: ./autogen.sh
 
@@ -43,6 +46,7 @@ subpackages:
         - libuv
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -61,9 +65,6 @@ test:
         - gcc
         - make
   pipeline:
-    - name: "Check libuv Installation"
-      runs: |
-        find /usr /usr/local -name 'libuv.so' || (echo "libuv library not found!" && exit 1)
     - name: "Compile and Run libuv Test Program"
       runs: |
         # Test program to check if libuv headers and functionality are working

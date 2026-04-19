@@ -1,7 +1,7 @@
 package:
   name: thingsboard
-  version: "4.2.1.1"
-  epoch: 0 # GHSA-84h7-rjj3-6jx4
+  version: "4.3.1.1"
+  epoch: 2 # GHSA-5qcv-4rpc-jp93
   description: "Open-source IoT Platform - Device management, data collection, processing and visualization."
   copyright:
     - license: Apache-2.0
@@ -9,6 +9,10 @@ package:
     runtime:
       - merged-lib
       - wolfi-baselayout
+  resources:
+    cpu: "4"
+    memory: 28Gi
+    disk: 50Gi
 
 environment:
   contents:
@@ -31,34 +35,23 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: e7f255ca5833947ba45d695e32d141a0d587cc23
+      expected-commit: c2a52e46c44e308ddee430e7266b8e10eddde9c4
       repository: https://github.com/thingsboard/thingsboard.git
       tag: v${{package.version}}
 
   - uses: patch
     with:
-      patches: wire-schema.patch spring-framework-version.patch tomcat-version.patch
+      patches: wire-schema.patch
 
   - uses: maven/pombump
-
-  - uses: maven/pombump
-    with:
-      patch-file: proto-pombump-deps.yaml
-      pom: common/proto/pom.xml
-
-  - uses: maven/pombump
-    with:
-      patch-file: pompbump-deps-util.yaml
-      pom: common/util/pom.xml
 
   - uses: maven/pombump
     with:
       properties-file: pombump-properties.yaml
 
-  - name: Bump js-yaml to remediate GHSA-mh29-5h37-fv8m
+  - name: Bump tinymce to remediate GHSA-5359-pvf2-pw78
     runs: |
-      jq '.dependencies."js-yaml" = "^4.1.1"' msa/js-executor/package.json > temp.json && mv temp.json msa/js-executor/package.json
-      jq '.dependencies."js-yaml" = "^4.1.1"' msa/web-ui/package.json > temp.json && mv temp.json msa/web-ui/package.json
+      jq '.dependencies."tinymce" = "^7.0.0"' ui-ngx/package.json > temp.json && mv temp.json ui-ngx/package.json
 
   - runs: |
       mvn clean install -DskipTests -Dlicense.skip=true
@@ -85,17 +78,10 @@ subpackages:
         runs: |
           cd "${{targets.subpkgdir}}/usr/share/tb-js-executor"
           resolutions='{
-            "@grpc/grpc-js": "^1.10.9",
-            "debug": "^4.3.1",
-            "fast-xml-parser": "^4.4.1",
-            "json5": "^2.2.2",
-            "moment": "^2.29.4",
-            "tough-cookie": "^4.1.3",
-            "xml2js": "^0.5.0",
-            "cookie": "^0.7.0"
+            "body-parser": "^2.2.1",
+            "moment": "^2.29.4"
           }'
           jq --argjson resolutions "$resolutions" '.resolutions += $resolutions' package.json > temp.json && mv temp.json package.json
-          jq '.dependencies.express = "^4.21.2"' package.json > temp.json && mv temp.json package.json
       - name: Install nodejs dependencies
         runs: |
           cd "${{targets.subpkgdir}}/usr/share/tb-js-executor"
@@ -171,9 +157,10 @@ subpackages:
         # This test needs to be run in order to ensure that tomcat-embed-core exists to provide jakarta/servlet/Filter.class (issue with pombump before)
         - name: Test for tomcat-embed-core
           runs: |
+            set -euo pipefail
             cd /usr/share/thingsboard/bin/
             unzip thingsboard.jar
-            ls BOOT-INF/lib/ | grep -q "tomcat-embed-core" || { echo "tomcat-embed-core not found"; exit 1; }
+            ls BOOT-INF/lib/ | grep -F "tomcat-embed-core" || { echo "tomcat-embed-core not found"; exit 1; }
         - name: Test server logs
           uses: test/daemon-check-output
           with:
@@ -194,10 +181,11 @@ subpackages:
     pipeline:
       - name: Move tb-web-ui to target directories
         runs: |
-          mkdir -p "${{targets.subpkgdir}}/usr/share/tb-web-ui"
+          mkdir -p "${{targets.subpkgdir}}/usr/share/tb-web-ui/web"
           mkdir -p "${{targets.subpkgdir}}/usr/bin"
           cd msa/web-ui/target
           cp -r src/* "${{targets.subpkgdir}}/usr/share/tb-web-ui"
+          cp -r web/* "${{targets.subpkgdir}}/usr/share/tb-web-ui/web"
           cp -r package/linux/conf "${{targets.subpkgdir}}/usr/share/tb-web-ui"
           cp -r package/linux/conf/* "${{targets.subpkgdir}}/usr/share/tb-web-ui/config"
           cp -r start-web-ui.sh "${{targets.subpkgdir}}/usr/bin"
@@ -205,19 +193,19 @@ subpackages:
         runs: |
           cd "${{targets.subpkgdir}}/usr/share/tb-web-ui"
           resolutions='{
-            "json5": "^2.2.2",
-            "moment": "^2.29.4",
-            "tinymce": "^7.0.0",
-            "on-headers": "1.1.0",
-            "cookie": "^0.7.0"
+            "body-parser": "^2.2.1",
+            "moment": "^2.29.4"
           }'
           jq --argjson resolutions "$resolutions" '.resolutions += $resolutions' package.json > temp.json && mv temp.json package.json
-          jq '.dependencies.express = "^4.21.2"' package.json > temp.json && mv temp.json package.json
       - name: Install nodejs dependencies
         runs: |
           cd "${{targets.subpkgdir}}/usr/share/tb-web-ui"
           yarn install --production --non-interactive --network-concurrency 4 --network-timeout 100000 --mutex network && yarn cache clean --all
     test:
+      environment:
+        contents:
+          packages:
+            - curl
       pipeline:
         - name: Test tb-web-ui logs
           uses: test/daemon-check-output
@@ -226,6 +214,10 @@ subpackages:
             timeout: 30
             expected_output: |
               Starting 'ThingsBoard Web UI Microservice'
+            post: |
+              wait-for-it localhost:8090 -t 30
+              # Verify endpoint responds with HTTP 200
+              curl -sf -o /dev/null -w "%{http_code}" http://localhost:8090 | grep -F "200"
 
 update:
   enabled: true

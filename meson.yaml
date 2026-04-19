@@ -1,18 +1,19 @@
 package:
   name: meson
-  version: "1.10.0"
-  epoch: 1
+  version: "1.11.0"
+  epoch: 0 # go/wolfi-rsc/meson
   description: Fast and user friendly build system
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 5Gi
 
 vars:
   pypi-package: meson
   import: mesonbuild
-  test-version-help: |
-    meson --help
   test-demo: |
     tmpdir=$(mktemp -d)
     trap "rm -rf $tmpdir" EXIT
@@ -56,7 +57,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/mesonbuild/meson
-      expected-commit: 415917b7c0d4759f73d0fe6564cbdda7fbf1eb9a
+      expected-commit: 6ac66b9cbe36e861a4b10cf62d75ec181dfb291a
       tag: ${{package.version}}
 
 subpackages:
@@ -104,7 +105,9 @@ subpackages:
           packages:
             - build-base
       pipeline:
-        - runs: ${{vars.test-version-help}}
+        - uses: test/tw/help-check
+          with:
+            bins: meson
         - runs: ${{vars.test-demo}}
 
   - name: py3-supported-${{vars.pypi-package}}
@@ -145,5 +148,7 @@ test:
       packages:
         - build-base
   pipeline:
-    - runs: ${{vars.test-version-help}}
+    - uses: test/tw/help-check
+      with:
+        bins: meson
     - runs: ${{vars.test-demo}}

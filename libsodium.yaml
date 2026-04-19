@@ -1,6 +1,6 @@
 package:
   name: libsodium
-  version: 1.0.20
+  version: "1.0.21"
   epoch: 2
   description: P(ortable|ackageable) NaCl-based crypto library
   copyright:
@@ -20,7 +20,9 @@ pipeline:
     with:
       repository: https://github.com/jedisct1/libsodium.git
       tag: ${{package.version}}-RELEASE
-      expected-commit: 9511c982fb1d046470a8b42aa36556cdb7da15de
+      expected-commit: d24faf56214469b354b01c8ba36257e04737101e
+      cherry-picks: |
+        master/6702f69bef6044163acc7715e6ac7e430890ce78: Fix compilation with GCC on aarch64
 
   - uses: autoconf/configure
 
@@ -35,6 +37,9 @@ subpackages:
     pipeline:
       - uses: split/static
     description: libsodium static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: libsodium-dev
     pipeline:
@@ -45,6 +50,7 @@ subpackages:
     description: libsodium dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -56,5 +62,50 @@ update:
     strip-suffix: -RELEASE
 
 test:
+  environment:
+    contents:
+      packages:
+        - libsodium-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test libsodium compilation and core functionality
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <sodium.h>
+        #include <stdio.h>
+
+        int main() {
+            /* Initialize libsodium */
+            if (sodium_init() < 0) {
+                fprintf(stderr, "FAIL: sodium_init() failed\n");
+                return 1;
+            }
+
+            /* Test secret key generation */
+            unsigned char key[crypto_secretbox_KEYBYTES];
+            crypto_secretbox_keygen(key);
+
+            /* Verify key is not all zeros (extremely unlikely with random) */
+            int all_zero = 1;
+            for (size_t i = 0; i < crypto_secretbox_KEYBYTES; i++) {
+                if (key[i] != 0) {
+                    all_zero = 0;
+                    break;
+                }
+            }
+            if (all_zero) {
+                fprintf(stderr, "FAIL: generated key is all zeros\n");
+                return 1;
+            }
+
+            printf("SUCCESS: libsodium crypto functions work correctly\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libsodium) test.c -o test $(pkg-config --libs libsodium)
+        ./test

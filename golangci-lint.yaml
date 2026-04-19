@@ -1,13 +1,18 @@
 package:
   name: golangci-lint
-  version: "2.7.2"
-  epoch: 0 # CVE-2025-47907
+  version: "2.11.4"
+  epoch: 3
   description: Fast linters Runner for Go
   copyright:
     - license: GPL-3.0
   dependencies:
     runtime:
       - diffutils
+  resources:
+    cpu: "3"
+    memory: 6Gi
+  test-resources:
+    memory: 4Gi
 
 environment:
   contents:
@@ -15,21 +20,19 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/golangci/golangci-lint
       tag: v${{package.version}}
-      expected-commit: 9f61b0f53f80672872fced07b6874397c3ed197b
+      expected-commit: 8f3b0c7ed018e57905fbd873c697e0b1ede605a5
 
   - runs: |
       make build
       mkdir -p ${{targets.destdir}}/usr/bin/
       cp ./golangci-lint ${{targets.destdir}}/usr/bin/golangci-lint
-
-  - uses: strip
 
 update:
   enabled: true
@@ -42,9 +45,10 @@ test:
     contents:
       packages:
         - bash
-        - go
+        - go-1.26
         - git
   pipeline:
+    - uses: test/tw/ldd-check
     - name: "Verify basic commands and version"
       runs: |
         golangci-lint --version

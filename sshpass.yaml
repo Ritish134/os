@@ -1,25 +1,27 @@
 package:
   name: sshpass
   version: 1.10
-  epoch: 2
+  epoch: 5
   description: Non-interactive SSH authentication utility
   copyright:
     - license: GPL-2.0-or-later
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
       - ca-certificates-bundle
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: ad1106c203cbb56185ca3bad8c6ccafca3b4064696194da879f81c8d7bdfeeda
-      uri: https://downloads.sourceforge.net/sshpass/sshpass-${{package.version}}.tar.gz
+      repository: https://git.code.sf.net/p/sshpass/code-git
+      tag: v${{package.version}}
+      expected-commit: ef1034d5f0b31fee6f27dce15a47a90f08935622
 
   - uses: autoconf/configure
 
@@ -40,8 +42,9 @@ subpackages:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 12961
+  git:
+    tag-filter-prefix: v
+    strip-prefix: v
 
 test:
   pipeline:
@@ -49,3 +52,23 @@ test:
     - runs: |
         sshpass -v
         sshpass -h
+    - name: Test password via command-line argument
+      runs: |
+        set -euo pipefail
+        # Verify sshpass can wrap and execute a command with a password argument
+        output=$(sshpass -p testpass echo "works")
+        echo "$output" | grep -F "works"
+    - name: Test password via environment variable
+      runs: |
+        set -euo pipefail
+        # Verify sshpass can read password from SSHPASS environment variable
+        export SSHPASS=testpass
+        output=$(sshpass -e echo "works")
+        echo "$output" | grep -F "works"
+    - name: Test password via file
+      runs: |
+        set -euo pipefail
+        # Verify sshpass can read password from a file
+        echo "testpass" > /tmp/passfile
+        output=$(sshpass -f /tmp/passfile echo "works")
+        echo "$output" | grep -F "works"

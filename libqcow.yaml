@@ -1,13 +1,16 @@
 package:
   name: libqcow
   version: "20240308"
-  epoch: 3
+  epoch: 5 # go/wolfi-rsc/libqcow
   description: "Library to access the QEMU Copy-On-Write (QCOW) image file format"
   copyright:
     - license: LGPL-3.0 AND GPL-3.0
   dependencies:
     # the upstream libqcow package must be picked by default
     provider-priority: "10"
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 environment:
   contents:
@@ -101,6 +104,7 @@ subpackages:
         - libqcow=${{package.full-version}}
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -121,5 +125,31 @@ update:
     use-tag: true
 
 test:
+  environment:
+    contents:
+      packages:
+        - ${{package.name}}-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test libqcow compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <libqcow.h>
+        #include <stdio.h>
+        int main() {
+            const char *version = libqcow_get_version();
+            if (version == NULL) {
+                fprintf(stderr, "FAIL: libqcow_get_version returned NULL\n");
+                return 1;
+            }
+            printf("libqcow version: %s\n", version);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libqcow) test.c -o test $(pkg-config --libs libqcow)
+        ./test

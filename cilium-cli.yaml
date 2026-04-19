@@ -1,10 +1,13 @@
 package:
   name: cilium-cli
-  version: "0.18.9"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "0.19.2"
+  epoch: 8 # GHSA-pc3f-x583-g7j2
   description: CLI to install, manage & troubleshoot Kubernetes clusters running Cilium
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "6"
+    memory: 10Gi
 
 environment:
   contents:
@@ -19,8 +22,18 @@ pipeline:
     with:
       repository: https://github.com/cilium/cilium-cli
       tag: v${{package.version}}
-      expected-commit: e875161a362b9092ff3e1110eccf52a9fdb17c0a
+      expected-commit: 3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4
       destination: cilium-cli
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        golang.org/x/net@v0.51.0
+        google.golang.org/grpc@v1.79.3
+        github.com/moby/spdystream@v0.5.1
+      modroot: cilium-cli
+      tidy: false
 
   - runs: |
       cd cilium-cli
@@ -37,7 +50,24 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        cilium help
-        cilium version
-        cilium --help
+    - uses: test/tw/ver-check
+      with:
+        bins: cilium
+    - uses: test/tw/help-check
+      with:
+        bins: cilium
+    - name: Test shell completion generation
+      runs: |
+        set -euo pipefail
+        # Verify bash completion generation works
+        cilium completion bash > /tmp/cilium-completion.bash
+        grep -F "cilium" /tmp/cilium-completion.bash
+        # Verify the completion script is non-trivial
+        line_count=$(wc -l < /tmp/cilium-completion.bash)
+        [ "$line_count" -gt 10 ] || { echo "FAIL: completion script too short ($line_count lines)"; exit 1; }
+    - name: Test client-side version metadata
+      runs: |
+        set -euo pipefail
+        # Verify client-side version output contains expected fields
+        output=$(cilium version --client 2>&1)
+        echo "$output" | grep -F "cilium-cli"

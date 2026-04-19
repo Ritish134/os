@@ -1,7 +1,7 @@
 package:
   name: etcd-3.6
-  version: "3.6.7"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "3.6.10"
+  epoch: 3 # CVE-2026-32280
   description: A highly-available key value store for shared configuration and service discovery.
   copyright:
     - license: Apache-2.0
@@ -13,6 +13,9 @@ package:
       - wolfi-baselayout
     provides:
       - etcd=${{package.full-version}}
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -27,49 +30,31 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/etcd-io/etcd
       tag: v${{package.version}}
-      expected-commit: e838ef116fc368b321ddf2e424167b15174fb80d
+      expected-commit: db8d13a5421fcbd1c5825a148735b80c7d36cd2d
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: tools/mod
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: tests
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: server
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: etcdutl
+        go.opentelemetry.io/otel/sdk@v1.43.0
+      modroot: |-
+        etcdutl
+        .
+        server
+        tests
 
   - uses: go/build
     with:
       packages: .
       modroot: ./etcdctl
       output: etcdctl
+      go-package: go-1.25
       ldflags: "-X go.etcd.io/etcd/api/v3/version.GitSHA=$(git rev-parse HEAD) -X go.etcd.io/etcd/etcdctl/v3/version.Version=${{package.version}}"
       extra-args: "-buildvcs=false"
 
@@ -78,6 +63,7 @@ pipeline:
       packages: .
       modroot: ./etcdctl
       output: etcdutl
+      go-package: go-1.25
       ldflags: "-X go.etcd.io/etcd/api/v3/version.GitSHA=$(git rev-parse HEAD) -X go.etcd.io/etcd/etcdctl/v3/version.Version=${{package.version}}"
       extra-args: "-buildvcs=false"
 
@@ -86,6 +72,7 @@ pipeline:
       packages: .
       modroot: ./server
       output: etcd
+      go-package: go-1.25
       ldflags: "-X go.etcd.io/etcd/api/v3/version.GitSHA=$(git rev-parse HEAD) -X go.etcd.io/etcd/server/v3/version.Version=${{package.version}}"
       extra-args: "-buildvcs=false"
 
@@ -93,9 +80,25 @@ pipeline:
       mkdir -p "${{targets.contextdir}}"/var/lib/${{package.name}}
       chmod 700 "${{targets.contextdir}}"/var/lib/${{package.name}}
 
-  - uses: strip
-
 subpackages:
+  - name: ${{package.name}}-compat
+    description: Compatibility subpackage for ${{package.name}}
+    dependencies:
+      runtime:
+        - ${{package.name}}
+    pipeline:
+      - runs: |
+          install -d "${{targets.subpkgdir}}/usr/local/bin"
+          ln -s ../../bin/etcd "${{targets.subpkgdir}}/usr/local/bin/etcd"
+          ln -s ../../bin/etcd "${{targets.subpkgdir}}/usr/local/bin/etcd-${{package.version}}"
+          ln -s ../../bin/etcdctl "${{targets.subpkgdir}}/usr/local/bin/etcdctl"
+          ln -s ../../bin/etcdctl "${{targets.subpkgdir}}/usr/local/bin/etcdctl-${{package.version}}"
+          ln -s ../../bin/etcdutl "${{targets.subpkgdir}}/usr/local/bin/etcdutl"
+          ln -s ../../bin/etcdutl "${{targets.subpkgdir}}/usr/local/bin/etcdutl-${{package.version}}"
+    test:
+      pipeline:
+        - uses: test/tw/symlink-check
+
   - name: ${{package.name}}-iamguarded-compat
     description: Compatibility package for iamguarded variant of Etcd
     dependencies:
@@ -149,6 +152,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Verify etcd version
       runs: |
         etcd --version | grep "etcd Version: ${{package.version}}"

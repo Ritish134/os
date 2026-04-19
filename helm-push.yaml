@@ -1,29 +1,39 @@
 package:
   name: helm-push
-  version: 0.10.4
-  epoch: 38 # CVE-2025-61729
+  version: "0.11.1"
+  epoch: 8 # GHSA-hr2v-4r36-88hr
   description: Helm plugin to push chart package to ChartMuseum
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 environment:
   contents:
     packages:
-      - build-base
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chartmuseum/helm-push
       tag: v${{package.version}}
-      expected-commit: 1678e259cddde8798a7d27db2fca6b9faba13552
+      expected-commit: a8fa26fa3885468849eeb3e9361a624b48930494
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        google.golang.org/grpc@v1.79.3
+        helm.sh/helm/v4@v4.1.4
+        helm.sh/helm/v3@v3.20.2
 
   # The upstream project pins GOARCH=amd64. This patch just removes
   # that line so the package will build both amd64 and aarch64
@@ -31,37 +41,26 @@ pipeline:
     with:
       patches: remove-arch-pin.patch
 
-  # Patch vulnerabilities
-  - uses: go/bump
-    with:
-      deps: |-
-        google.golang.org/protobuf@v1.33.0
-        golang.org/x/oauth2@v0.27.0
-        golang.org/x/net@v0.38.0
-        helm.sh/helm/v3@v3.18.5
-        github.com/containerd/containerd@v1.7.29
-        golang.org/x/crypto@v0.45.0
-
   # Dropping helm plugins in /usr/libexec since they are binaries and
   # configuration intended to be run by the helm command.
   # See https://refspecs.linuxfoundation.org/FHS_3.0/fhs/ch04s07.html
   #
   # Installers of this package will have to set this environment var
   #   HELM_PLUGINS=/usr/libexec/helm-plugins
+  - uses: go/build
+    with:
+      packages: ./cmd/helm-cm-push
+      output: helm-cm-push
+      go-package: go-1.25
+
   - runs: |
-      cat Makefile
-      make build_linux
       INSTALL_DIR="${{targets.destdir}}/usr/libexec/helm-plugins/${{package.name}}"
-      mkdir -p "${INSTALL_DIR}"
       mkdir -p "${INSTALL_DIR}/bin"
       mkdir -p "${INSTALL_DIR}/scripts"
-
-      install -Dm755 ./bin/linux/amd64/helm-cm-push "${INSTALL_DIR}/bin/helm-cm-push"
+      ln -sf /usr/bin/helm-cm-push "${INSTALL_DIR}/bin/helm-cm-push"
       install -Dm755 ./scripts/* "${INSTALL_DIR}/scripts"
       install -Dm644 ./LICENSE "${INSTALL_DIR}/LICENSE"
       install -Dm644 ./plugin.yaml "${INSTALL_DIR}/plugin.yaml"
-
-  - uses: strip
 
 update:
   enabled: true
@@ -71,5 +70,52 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        /usr/libexec/helm-plugins/helm-push/bin/helm-cm-push --help
+    - uses: test/tw/ldd-check
+    - name: Verify plugin directory structure
+      uses: test/tw/contains-files
+      with:
+        files: |
+          /usr/libexec/helm-plugins/helm-push/bin/helm-cm-push
+          /usr/libexec/helm-plugins/helm-push/plugin.yaml
+          /usr/libexec/helm-plugins/helm-push/LICENSE
+    - name: Verify helm-cm-push binary runs
+      runs: |
+        helm-cm-push --help
+    - name: Validate plugin metadata and binary
+      runs: |
+        set -euo pipefail
+
+        PLUGIN_DIR="/usr/libexec/helm-plugins/helm-push"
+
+        # Verify the binary is executable
+        [ -x "${PLUGIN_DIR}/bin/helm-cm-push" ] || {
+          echo "FAIL: helm-cm-push binary is not executable"
+          exit 1
+        }
+
+        # Verify plugin.yaml contains required Helm plugin fields
+        grep -qF "name:" "${PLUGIN_DIR}/plugin.yaml" || {
+          echo "FAIL: plugin.yaml missing 'name' field"
+          exit 1
+        }
+        grep -qF "command:" "${PLUGIN_DIR}/plugin.yaml" || {
+          echo "FAIL: plugin.yaml missing 'command' field"
+          exit 1
+        }
+
+        # Verify scripts directory has content
+        script_count=$(find "${PLUGIN_DIR}/scripts" -type f | wc -l)
+        [ "$script_count" -gt 0 ] || {
+          echo "FAIL: No scripts found in plugin scripts directory"
+          exit 1
+        }
+
+        # Verify scripts are executable
+        for script in "${PLUGIN_DIR}/scripts/"*; do
+          [ -x "$script" ] || {
+            echo "FAIL: Script $script is not executable"
+            exit 1
+          }
+        done
+
+        echo "SUCCESS: Plugin structure and metadata validated"

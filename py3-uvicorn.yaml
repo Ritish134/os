@@ -1,10 +1,13 @@
 package:
   name: py3-uvicorn
-  version: "0.40.0"
-  epoch: 0
+  version: "0.44.0"
+  epoch: 0 # go/wolfi-rsc/py3-uvicorn
   description: Uvicorn is an ASGI web server implementation for Python
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 vars:
   pypi-package: uvicorn
@@ -31,7 +34,7 @@ pipeline:
     with:
       repository: https://github.com/encode/uvicorn
       tag: ${{package.version}}
-      expected-commit: 9ff60042a53cd1bbfd5580ab0a91ea2d1d8f2f8c
+      expected-commit: edb54c43c0321c0b41eee1473f3f4cf145e8927f
 
 subpackages:
   - range: py-versions
@@ -65,9 +68,13 @@ subpackages:
       - uses: split/bin
     test:
       pipeline:
-        - runs: |
-            uvicorn --version
-            uvicorn --help
+        - uses: test/tw/help-check
+          with:
+            bins: uvicorn
+        - uses: test/tw/ver-check
+          with:
+            bins: uvicorn
+            version: ${{package.version}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -79,22 +86,7 @@ subpackages:
         - py3.13-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: python/import
-          with:
-            python: python3.10
-            import: ${{vars.import}}
-        - uses: python/import
-          with:
-            python: python3.11
-            import: ${{vars.import}}
-        - uses: python/import
-          with:
-            python: python3.12
-            import: ${{vars.import}}
-        - uses: python/import
-          with:
-            python: python3.13
-            import: ${{vars.import}}
+        - uses: test/metapackage
 
 test:
   pipeline:

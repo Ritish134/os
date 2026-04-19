@@ -1,7 +1,7 @@
 package:
   name: lm-sensors
   version: 3.6.0
-  epoch: 41
+  epoch: 43 # go/wolfi-rsc/lm-sensors
   description: Collection of user space tools for general SMBus access and hardware monitoring.
   copyright:
     - license: LGPL-2.1-or-later AND GPL-2.0-or-later
@@ -9,6 +9,9 @@ package:
     runtime:
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 environment:
   contents:
@@ -106,6 +109,11 @@ subpackages:
       runtime:
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /etc/init.d/
 
   - name: lm-sensors-sensord
     pipeline:
@@ -133,6 +141,11 @@ subpackages:
       runtime:
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /etc/init.d/
 
 update:
   enabled: true

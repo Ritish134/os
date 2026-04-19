@@ -1,12 +1,18 @@
 package:
   name: py3-tomli
-  version: "2.3.0"
-  epoch: 1
+  version: "2.4.1"
+  epoch: 1 # go/wolfi-rsc/py3-tomli
   description: TOML parser
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 2Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   pypi-package: tomli
@@ -18,6 +24,7 @@ data:
       3.11: "311"
       3.12: "312"
       3.13: "313"
+      3.14: "314"
 
 environment:
   contents:
@@ -26,12 +33,14 @@ environment:
       - busybox
       - py3-supported-installer
       - py3-supported-python
+      # py3-supported-python doesn't support py3.14 just yet
+      - python-3.14-base
 
 pipeline:
   - uses: fetch
     with:
       uri: https://files.pythonhosted.org/packages/py3/t/tomli/tomli-${{package.version}}-py3-none-any.whl
-      expected-sha256: e95b1af3c5b07d9e643909b5abbec77cd9f1217e6d0bca72b0234736b9fb1f1b
+      expected-sha256: 0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe
       extract: false
 
 subpackages:
@@ -62,9 +71,10 @@ subpackages:
         - py3.11-${{vars.pypi-package}}
         - py3.12-${{vars.pypi-package}}
         - py3.13-${{vars.pypi-package}}
+        - py3.14-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: test/metapackage
+        - uses: test/tw/metapackage
 
 update:
   enabled: true

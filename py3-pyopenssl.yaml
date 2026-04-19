@@ -1,12 +1,15 @@
 package:
   name: py3-pyopenssl
-  version: "25.3.0"
-  epoch: 0
+  version: "26.0.0"
+  epoch: 1
   description: Python wrapper module around the OpenSSL library
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "4"
+    memory: 8Gi
 
 vars:
   pypi-package: pyopenssl
@@ -28,7 +31,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 41e778874171b9655df3d5aa513acf821a1a83cc
+      expected-commit: 358cbf29c4e364c59930e53a270116249581eaa3
       repository: https://github.com/pyca/pyopenssl
       tag: ${{package.version}}
 
@@ -55,6 +58,7 @@ subpackages:
           packages:
             - openssl-provider-legacy
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

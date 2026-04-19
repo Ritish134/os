@@ -1,10 +1,13 @@
 package:
   name: samply
   version: "0.13.1"
-  epoch: 5
+  epoch: 14 # GHSA-pwjx-qhcg-rvj4
   description: "Command-line sampling profiler for macOS and Linux"
   copyright:
     - license: Apache-2.0 OR MIT
+  resources:
+    cpu: "9"
+    memory: 10Gi
 
 environment:
   contents:
@@ -13,7 +16,7 @@ environment:
       - busybox
       - ca-certificates-bundle
       - cargo-auditable
-      - rust
+      - rust-1.94
       - wolfi-base
 
 pipeline:
@@ -23,13 +26,21 @@ pipeline:
       expected-commit: da75c28f367454c621e690eeb4e44ec2ebb29a78
       tag: samply-v${{package.version}}
 
-  - uses: rust/cargobump
+  - uses: bump
+    with:
+      deps: |-
+        rustls@0.22.4
+        ring@0.17.13
+        tokio@1.43.1
+        crossbeam-channel@0.5.15
+        bytes@1.11.1
+        time@0.3.47
+        quinn-proto@0.11.14
+        rustls@0.23.24
 
-  - name: Configure and build
-    runs: |
-      cargo auditable build --release
-      mkdir -p ${{targets.destdir}}/usr/bin/
-      mv target/release/samply ${{targets.destdir}}/usr/bin/
+  - uses: cargo/build
+    with:
+      output: samply
 
   - uses: strip
 
@@ -39,7 +50,7 @@ update:
     identifier: mstange/samply
     strip-prefix: samply-v
     use-tag: true
-    tag-filter: samply-v
+    tag-filter-prefix: samply-v
 
 test:
   environment:
@@ -47,11 +58,13 @@ test:
       packages:
         - jq
   pipeline:
-    - name: Verify install
-      runs: |
-        samply -h || exit 1
-        samply --version
-        samply --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: samply
+    - uses: test/tw/ver-check
+      with:
+        bins: samply
     - name: Profile jq and check that profile.json is created
       runs: |
-        samply record -s jq -h && jq < ./profile.json
+        samply record -s jq -h && jq -e . < ./profile.json

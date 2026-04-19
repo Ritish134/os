@@ -1,12 +1,15 @@
 package:
   name: py3-ansible-core
-  version: "2.20.1"
-  epoch: 0
+  version: "2.20.4"
+  epoch: 1 # go/wolfi-rsc/py3-ansible-core
   description: Ansible is a radically simple IT automation platform
   copyright:
     - license: GPL-3.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 vars:
   pypi-package: ansible-core
@@ -25,7 +28,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 55ee8acd65cd94a110ce5eb5a3668c320b26f7d8
+      expected-commit: 4c777317e90223843c775f75cadb6f37d4ec27e8
       repository: https://github.com/ansible/ansible
       tag: v${{package.version}}
 
@@ -51,6 +54,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: test/virtualpackage
           with:
             virtual-pkg-name: "${{package.name}}"

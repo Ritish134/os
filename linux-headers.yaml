@@ -1,10 +1,16 @@
 package:
   name: linux-headers
-  version: "6.18.3"
-  epoch: 0
+  version: "7.0"
+  epoch: 0 # go/wolfi-rsc/linux-headers
   description: "the Linux kernel headers (cross compilation)"
   copyright:
     - license: GPL-2.0-only WITH Linux-syscall-note
+  resources:
+    cpu: "4"
+    memory: 10Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -20,7 +26,7 @@ pipeline:
     with:
       repository: https://github.com/gregkh/linux
       tag: v${{package.version}}
-      expected-commit: a607c8f744340ad2c2486d46e96b66df47caffba
+      expected-commit: 028ef9c96e96197026887c0f092424679298aae8
 
   - runs: |
       make mrproper
@@ -44,7 +50,28 @@ update:
     use-tag: true
 
 test:
+  environment:
+    contents:
+      packages:
+        - build-base
+        - header-check
   pipeline:
-    - runs: |
-        # Ensure we've installed at least one header file
-        [ $(find /usr/include/linux/ -name *.h | wc -l) != 0 ]
+    - uses: test/tw/header-check
+      with:
+        files: "linux/types.h linux/ioctl.h linux/fs.h"
+    - name: Compile test with kernel headers
+      runs: |
+        set -euo pipefail
+
+        # Verify kernel headers are usable by compiling a C program
+        tee test.c <<'EOF'
+        #include <linux/types.h>
+        #include <linux/ioctl.h>
+        int main() {
+            __u32 x = 0;
+            return (int)x;
+        }
+        EOF
+
+        gcc test.c -o test
+        ./test

@@ -1,33 +1,46 @@
 package:
   name: k9s
-  version: "0.50.16"
-  epoch: 5 # CVE-2025-61729
+  version: "0.50.18"
+  epoch: 19 # GHSA-pc3f-x583-g7j2
   description: Kubernetes CLI To Manage Your Clusters In Style!
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "8"
+    memory: 16Gi
+  test-resources:
+    memory: 1Gi
 
 environment:
   contents:
     packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 3c37ca2197ca48591566d1f599b7b3a50d54a408
+      expected-commit: 6dbf571c59fd48dc5b384aa46ee7f3e5decfae2b
       repository: https://github.com/derailed/k9s
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        github.com/opencontainers/selinux@v1.13.0
-        github.com/containerd/containerd@v1.7.29
-        golang.org/x/crypto@v0.45.0
-        github.com/anchore/grype@v0.104.1
+        github.com/cloudflare/circl@v1.6.3
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        github.com/anchore/syft@v1.42.3
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/hashicorp/go-getter@v1.8.6
+        helm.sh/helm/v3@v3.20.2
+        github.com/moby/spdystream@v0.5.1
 
   - uses: go/build
     with:
       packages: .
+      go-package: go-1.25
       ldflags: |
         -X github.com/derailed/k9s/cmd.version=v${{package.version}}
         -X github.com/derailed/k9s/cmd.commit=$(git rev-parse HEAD)
@@ -42,7 +55,13 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: k9s
+    - uses: test/tw/ver-check
+      with:
+        bins: k9s
+    - uses: test/kwok/cluster
     - runs: |
-        k9s version
-        k9s --version
-        k9s --help
+        k9s info

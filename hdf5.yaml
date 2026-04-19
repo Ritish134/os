@@ -1,11 +1,14 @@
 package:
   name: hdf5
   description: Library for accessing Hierarchical Data Format version 5 files
-  version: "2.0.0"
-  epoch: 0
+  version: "2.1.1"
+  epoch: 0 # go/wolfi-rsc/hdf5
   url: https://www.hdfgroup.org/solutions/hdf5/
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "12"
+    memory: 10Gi
 
 environment:
   contents:
@@ -27,8 +30,8 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/HDFGroup/hdf5
-      expected-commit: a6ff8aed236ee1e1deff6415e88b16c42b22f17c
-      tag: hdf5_${{package.version}}
+      expected-commit: 4fde4fd787744b6a19b12032f4dad0383fbe6fbd
+      tag: ${{package.version}}
 
   - uses: cmake/configure
     with:
@@ -44,7 +47,8 @@ pipeline:
         -DHDF5_ENABLE_SZIP_SUPPORT=ON \
         -DHDF5_ENABLE_SZIP_ENCODING=ON \
         -DUSE_LIBAEC=ON \
-        -DDEFAULT_API_VERSION=v18
+        -DDEFAULT_API_VERSION=v18 \
+        -DBUILD_TESTING=OFF
 
   - uses: cmake/build
 
@@ -66,6 +70,9 @@ subpackages:
     description: 'hdf5 static libraries'
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: 'hdf5-dev'
     description: 'hdf5 development headers'

@@ -1,12 +1,15 @@
 package:
   name: py3-meson-python
-  version: "0.18.0"
-  epoch: 1
+  version: "0.19.0"
+  epoch: 3 # go/wolfi-rsc/py3-meson-python
   description: Meson Python build backend (PEP 517)
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 2Gi
 
 vars:
   pypi-package: meson-python
@@ -37,7 +40,7 @@ pipeline:
     with:
       repository: https://github.com/mesonbuild/meson-python
       tag: ${{package.version}}
-      expected-commit: e094949f466ae69043fcec3ec68b41ace900ed97
+      expected-commit: d7578513e2a73c6a0ab4ea861b16af06115b2e3e
 
 subpackages:
   - range: py-versions
@@ -48,11 +51,11 @@ subpackages:
         - py3-${{vars.pypi-package}}
       provider-priority: ${{range.value}}
       runtime:
-        - py${{range.key}}-tomli
+        - py${{range.key}}-colorama
+        - py${{range.key}}-meson
         - py${{range.key}}-packaging
         - py${{range.key}}-pyproject-metadata
-        - py${{range.key}}-colorama
-        - py${{range.key}}-packaging
+        - py${{range.key}}-tomli
     pipeline:
       - uses: py/pip-build-install
         with:
@@ -60,6 +63,9 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
+          with:
+            python: python${{range.key}}
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -75,16 +81,11 @@ subpackages:
         - py3.13-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: python/import
-          with:
-            python: python3.10
-            import: mesonpy
+        - uses: test/metapackage
 
 test:
   pipeline:
-    - uses: python/import
-      with:
-        import: mesonpy
+    - uses: test/tw/byproductpackage
 
 update:
   enabled: true

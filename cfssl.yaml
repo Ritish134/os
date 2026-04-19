@@ -1,17 +1,20 @@
 package:
   name: cfssl
   version: 1.6.5
-  epoch: 25 # GHSA-j5w8-q4qc-rx2x
+  epoch: 32 # CVE-2026-32280
   description: Cloudflare's PKI and TLS toolkit
   copyright:
     - license: BSD-2-Clause
+  resources:
+    cpu: "3"
+    memory: 8Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
@@ -31,6 +34,7 @@ pipeline:
     with:
       packages: ./cmd/cfssl
       output: cfssl
+      go-package: go-1.25
       ldflags: -X github.com/cloudflare/cfssl/cli/version.version=${{package.version}}
       vendor: true
 
@@ -53,13 +57,14 @@ subpackages:
         with:
           packages: ./cmd/${{range.value}}
           output: ${{range.value}}
+          go-package: go-1.25
           ldflags: -X github.com/cloudflare/cfssl/cli/version.version=${{package.version}}
           vendor: true
     test:
       pipeline:
-        - runs: |
-            echo "Testing ${{range.value}}"
-            ${{range.value}} -h
+        - uses: test/tw/help-check
+          with:
+            bins: ${{range.value}}
 
 update:
   enabled: true
@@ -68,7 +73,81 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - openssl
   pipeline:
-    - runs: |
-        echo "Testing cfssl"
-        cfssl -h
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: cfssl
+    - name: Test cfssl print-defaults
+      runs: |
+        set -euo pipefail
+
+        # Verify default config generation
+        cfssl print-defaults config > /tmp/default-config.json
+        grep -F '"signing"' /tmp/default-config.json
+        grep -F '"default"' /tmp/default-config.json
+
+        # Verify default CSR generation
+        cfssl print-defaults csr > /tmp/default-csr.json
+        grep -F '"CN"' /tmp/default-csr.json
+        grep -F '"key"' /tmp/default-csr.json
+    - name: Test cfssl genkey
+      runs: |
+        set -euo pipefail
+
+        # Create a CSR config
+        cat > /tmp/csr.json <<'EOF'
+        {
+          "CN": "test.example.com",
+          "key": {
+            "algo": "ecdsa",
+            "size": 256
+          },
+          "names": [
+            {
+              "O": "Test Org"
+            }
+          ]
+        }
+        EOF
+
+        # Generate CSR and key
+        cfssl genkey /tmp/csr.json > /tmp/genkey-output.json
+
+        # Verify output contains CSR and key
+        grep -F '"csr"' /tmp/genkey-output.json
+        grep -F '"key"' /tmp/genkey-output.json
+    - name: Test cfssl selfsign
+      runs: |
+        set -euo pipefail
+
+        # Create a CSR config for self-signed cert
+        cat > /tmp/selfsign-csr.json <<'EOF'
+        {
+          "CN": "selfsign.example.com",
+          "key": {
+            "algo": "ecdsa",
+            "size": 256
+          },
+          "names": [
+            {
+              "O": "Test Org"
+            }
+          ]
+        }
+        EOF
+
+        # Generate self-signed certificate
+        cfssl selfsign selfsign.example.com /tmp/selfsign-csr.json > /tmp/selfsign-output.json
+
+        # Verify output contains cert and key
+        grep -F '"cert"' /tmp/selfsign-output.json
+        grep -F '"key"' /tmp/selfsign-output.json
+
+        # Extract the cert PEM and verify with openssl
+        grep -o '"cert":"[^"]*"' /tmp/selfsign-output.json | sed 's/"cert":"//;s/"$//' | sed 's/\\n/\n/g' > /tmp/selfsign-cert.pem
+        openssl x509 -in /tmp/selfsign-cert.pem -noout -subject | grep -F "selfsign.example.com"

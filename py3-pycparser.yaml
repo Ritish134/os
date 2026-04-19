@@ -1,13 +1,16 @@
 # Generated from https://pypi.org/project/pycparser/
 package:
   name: py3-pycparser
-  version: "2.23"
-  epoch: 1
+  version: "3.00"
+  epoch: 3
   description: C parser in Python
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "4"
+    memory: 8Gi
 
 environment:
   contents:
@@ -21,6 +24,8 @@ environment:
       - py3-supported-python
       - py3-supported-setuptools
       - py3-supported-wheel
+      # py3-supported-python doesn't support py3.14 just yet
+      - python-3.14-base
       - wolfi-base
 
 vars:
@@ -33,13 +38,14 @@ data:
       3.11: '311'
       3.12: '312'
       3.13: '313'
+      3.14: '314'
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/eliben/pycparser
       tag: release_v${{package.version}}
-      expected-commit: 5b60167602e7914139b3e277266ccdff5c24dbf2
+      expected-commit: 77de509f0268f44ee587b5a4d9f0d680e269fcae
 
 subpackages:
   - range: py-versions
@@ -54,10 +60,16 @@ subpackages:
         with:
           python: python${{range.key}}
       - runs: |
+          # pytest doesn't support 3.14 just yet
+          if [ "${{range.key}}" == "3.14" ] ; then
+            echo "WARNING: not running pytest on python 3.14" >&2
+            exit 0
+          fi
           python${{range.key}} -m pytest tests/
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -71,9 +83,10 @@ subpackages:
         - py3.11-${{vars.pypi-package}}
         - py3.12-${{vars.pypi-package}}
         - py3.13-${{vars.pypi-package}}
+        - py3.14-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: test/metapackage
+        - uses: test/tw/metapackage
 
 update:
   enabled: true

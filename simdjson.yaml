@@ -1,10 +1,10 @@
 package:
   name: simdjson
-  version: "4.2.4"
+  version: "4.6.2"
   epoch: 0
   description: Parses Gigabytes of JSON per second
   copyright:
-    - license: Apache-2.0
+    - license: Apache-2.0 OR MIT
 
 environment:
   contents:
@@ -17,7 +17,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 980f2ad3afb12729157b44ed33d2bac41b67b54b
+      expected-commit: 61641f9a7aedc762d3b1c049a2b2a44d1c6db8a2
       repository: https://github.com/simdjson/simdjson/
       tag: v${{package.version}}
 
@@ -35,27 +35,67 @@ pipeline:
   - uses: strip
 
 subpackages:
+  - name: simdjson-libs
+    pipeline:
+      - uses: split/lib
+    description: simdjson shared libraries
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
+
   - name: simdjson-static
     pipeline:
       - uses: split/static
-      - runs: |
-          mkdir -p ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
-          mv ${{targets.destdir}}/usr/lib/cmake/simdjson/simdjson_staticTargets-minsizerel.cmake ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
-          mv ${{targets.destdir}}/usr/lib/cmake/simdjson/simdjson_staticTargets.cmake ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
     description: simdjson static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: simdjson-dev
     pipeline:
       - uses: split/dev
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
+          mv ${{targets.contextdir}}/usr/lib/cmake/simdjson/simdjson_staticTargets-minsizerel.cmake ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
+          mv ${{targets.contextdir}}/usr/lib/cmake/simdjson/simdjson_staticTargets.cmake ${{targets.contextdir}}/usr/lib/cmake/simdjson-static/
     description: simdjson dev
+    dependencies:
+      runtime:
+        - simdjson-libs
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
 test:
+  environment:
+    contents:
+      packages:
+        - simdjson-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test simdjson library compilation and JSON parsing
+      runs: |
+        tee test.cpp <<'EOF'
+        #include <simdjson.h>
+        #include <cassert>
+        #include <string_view>
+        int main() {
+            simdjson::ondemand::parser parser;
+            auto json = simdjson::padded_string(std::string_view(R"({"name":"simdjson","fast":true})"));
+            auto doc = parser.iterate(json);
+            std::string_view name = doc["name"];
+            assert(name == "simdjson");
+            bool fast = doc["fast"];
+            assert(fast == true);
+            return 0;
+        }
+        EOF
+        g++ $(pkg-config --cflags simdjson) test.cpp -o test $(pkg-config --libs simdjson)
+        ./test
 
 update:
   enabled: true

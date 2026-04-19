@@ -1,7 +1,7 @@
 package:
   name: k3s
-  version: "1.35.0.1"
-  epoch: 0 # GHSA-cfpf-hrx2-8rv6
+  version: "1.35.3.1"
+  epoch: 4 # GHSA-pc3f-x583-g7j2
   description:
   copyright:
     - license: Apache-2.0
@@ -11,7 +11,7 @@ package:
       - conntrack-tools
       - containerd-shim-runc-v2
       - ipset # required for network policy controller
-      - iptables-wrappers
+      - iptables-nft
       - kmod
       - libseccomp
       - merged-bin
@@ -25,6 +25,9 @@ package:
       # - containerd
       # - kubectl
       - wolfi-baselayout
+  resources:
+    cpu: "15"
+    memory: 19Gi
 
 environment:
   contents:
@@ -58,15 +61,20 @@ pipeline:
     with:
       repository: https://github.com/k3s-io/k3s
       tag: v${{vars.mangled-package-version}}
-      expected-commit: a6c6cd15c0c42ec9fce21f8ad5f42aa74fddb4f2
+      expected-commit: be38e8843c3498607d41ce583bdbb0ef1e63bba6
 
   - uses: go/bump
     with:
       deps: |-
-        github.com/quic-go/quic-go@v0.54.1
-        github.com/libp2p/go-libp2p@v0.44.0
-        github.com/containerd/containerd/v2@v2.1.5
-        github.com/expr-lang/expr@v1.17.7
+        filippo.io/edwards25519@v1.1.1
+        github.com/libp2p/go-libp2p@v0.47.0
+        github.com/quic-go/webtransport-go@v0.10.0
+        github.com/buger/jsonparser@v1.1.2
+        github.com/nats-io/nats-server/v2@v2.12.6
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/jackc/pgx/v5@v5.9.0
+        github.com/moby/spdystream@v0.5.1
 
   # Build things (almost) identical to upstream, with the k3s components
   # embedded in the "outer" multicall binary.
@@ -116,7 +124,7 @@ subpackages:
         - conntrack-tools
         - containerd-shim-runc-v2
         - ipset
-        - iptables-wrappers
+        - iptables-nft
         - kmod
         - libseccomp
         - merged-bin
@@ -161,7 +169,7 @@ subpackages:
         - busybox
         - conntrack-tools
         - ipset
-        - iptables-wrappers
+        - iptables-nft
         - kmod
         - merged-bin
         - mount

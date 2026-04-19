@@ -2,7 +2,7 @@
 package:
   name: ruby4.0-io-console
   version: "0.8.2"
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/ruby4.0-io-console
   description: add console capabilities to IO instances.
   copyright:
     - license: Ruby
@@ -10,6 +10,9 @@ package:
   dependencies:
     runtime:
       - ruby-${{vars.rubyMM}}
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 environment:
   contents:
@@ -44,9 +47,9 @@ vars:
 
 test:
   pipeline:
-    - name: Verify gem installation
-      runs: |
-        gem list io-console
+    - uses: test/tw/gem-check
+      with:
+        require: io/console
     - name: Test core functionality
       runs: |
         ruby -e '

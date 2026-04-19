@@ -1,10 +1,13 @@
 package:
   name: containers-image
   version: "5.36.1"
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/containers-image
   description: "Registry configuration for container tools"
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 environment:
   contents:
@@ -39,6 +42,15 @@ update:
 
 test:
   pipeline:
-    - name: Verify storage configuration
+    - name: Verify registries configuration
       runs: |-
+        set -euo pipefail
+
+        # Verify the configuration file exists
         stat /etc/containers/registries.conf
+
+        # Verify the key setting is present (set by the build pipeline via sed)
+        grep -qF 'unqualified-search-registries' /etc/containers/registries.conf
+
+        # Verify docker.io is configured as a search registry
+        grep -q 'docker.io' /etc/containers/registries.conf

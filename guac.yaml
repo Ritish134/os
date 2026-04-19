@@ -1,10 +1,13 @@
 package:
   name: guac
-  version: "1.0.1"
-  epoch: 3 # CVE-2025-61729
+  version: "1.1.0"
+  epoch: 5 # GHSA-jhf3-xxhw-2wpp
   description: GUAC aggregates software security metadata into a high fidelity graph database.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "11"
+    memory: 13Gi
 
 environment:
   contents:
@@ -12,19 +15,26 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/guacsec/guac
       tag: v${{package.version}}
-      expected-commit: 25ea1e1d71a7cecf4cb08c277ad7f3ccac749dad
+      expected-commit: a399a54801bfbffc36bc8748dd97d2d2b3bea378
 
-  - uses: go/bump
+  - uses: bump
     with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
+      language: go
+      packages: |-
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/cloudflare/circl@v1.6.3
+        github.com/docker/cli@v29.2.0
+        google.golang.org/grpc@v1.79.3
+        github.com/moby/buildkit@v0.28.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:

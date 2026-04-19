@@ -1,10 +1,19 @@
+#nolint:valid-pipeline-git-checkout-commit,valid-pipeline-git-checkout-tag
+# FasterXML/jackson-1 does not maintain release tags; only the master branch
+# receives patches (see comment on the git-checkout step below). Without a tag,
+# valid-pipeline-git-checkout-tag fires (branch: is used instead of tag:), and
+# valid-pipeline-git-checkout-commit fires because the expected-commit cannot be
+# cross-validated against any tag.
 package:
   name: jackson-json
   version: 1.9.14
-  epoch: 1
+  epoch: 4 # go/wolfi-rsc/jackson-json
   description: Jackson JSON processor 1.9 maintenance package
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -17,11 +26,12 @@ environment:
       - wolfi-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
       # releases/tags are not maintained, only the main branch receives patches
-      uri: https://github.com/FasterXML/jackson-1/archive/9ac68db819bce7b9546bc4bf1c44f82ca910fa31.tar.gz
-      expected-sha256: 855657de4fa6e9801a61ff4176e9b95448a0e876833e8dc1b4784e96eb2b117f
+      repository: https://github.com/FasterXML/jackson-1
+      branch: master
+      expected-commit: 9ac68db819bce7b9546bc4bf1c44f82ca910fa31
 
   - runs: |
       export LANG=en_US.UTF-8
@@ -30,6 +40,17 @@ pipeline:
 
       mkdir -p ${{targets.destdir}}/usr/share/java
       mv build/*.jar ${{targets.destdir}}/usr/share/java
+
+test:
+  environment:
+    contents:
+      packages:
+        - openjdk-8-default-jdk
+  pipeline:
+    - runs: |
+        set -euo pipefail
+        jar -tf /usr/share/java/jackson-core-asl-1.9.14.jar | grep -F "org/codehaus/jackson/JsonFactory.class"
+        jar -tf /usr/share/java/jackson-mapper-asl-1.9.14.jar | grep -F "org/codehaus/jackson/map/ObjectMapper.class"
 
 update:
   enabled: false

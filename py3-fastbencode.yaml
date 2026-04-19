@@ -1,12 +1,15 @@
 package:
   name: py3-fastbencode
-  version: "0.3.8"
-  epoch: 0
+  version: "0.3.10"
+  epoch: 1 # go/wolfi-rsc/py3-fastbencode
   description: Implementation of bencode with optional fast C extensions
   copyright:
     - license: GPL-2.0-or-later
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 9Gi
 
 vars:
   pypi-package: fastbencode
@@ -31,7 +34,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: c3346e8347f1c8dc1d8fbce81634ec92d593b96e
+      expected-commit: 3b99c767ae5f9677ebc459992e19cb09c4ff050b
       repository: https://github.com/breezy-team/fastbencode
       tag: v${{package.version}}
 
@@ -51,6 +54,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

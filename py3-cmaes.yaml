@@ -1,12 +1,15 @@
 package:
   name: py3-cmaes
-  version: "0.12.0"
-  epoch: 5
+  version: "0.13.0"
+  epoch: 0 # go/wolfi-rsc/py3-cmaes
   description: Lightweight Covariance Matrix Adaptation Evolution Strategy (CMA-ES) implementation for Python 3.
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 vars:
   pypi-package: cmaes
@@ -29,7 +32,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/CyberAgentAILab/cmaes
-      expected-commit: e4bbf18619ebe24b4dd321c9cc251c5a66439134
+      expected-commit: a9b021441976e83c959ca641e4efcff703808ad3
       tag: v${{package.version}}
 
 subpackages:
@@ -50,6 +53,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

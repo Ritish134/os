@@ -1,13 +1,16 @@
 package:
   name: rabbitmq-c
   version: 0.15.0
-  epoch: 1
+  epoch: 4
   description: "RabbitMQ C client"
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - openssl
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -15,7 +18,7 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - openssl-dev
+      - openssl-hardened-dev
 
 pipeline:
   - uses: git-checkout
@@ -39,6 +42,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -50,5 +54,26 @@ update:
     tag-filter: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - rabbitmq-c-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and linking
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <amqp.h>
+        int main() {
+            amqp_connection_state_t conn = amqp_new_connection();
+            amqp_destroy_connection(conn);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags librabbitmq) test.c -o test $(pkg-config --libs librabbitmq)
+        ./test

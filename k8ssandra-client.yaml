@@ -1,17 +1,25 @@
 package:
   name: k8ssandra-client
-  version: "0.8.5"
-  epoch: 0 # CVE-2025-61729
+  version: "0.8.10"
+  epoch: 10 # GHSA-pc3f-x583-g7j2
   description: A kubectl plugin to simplify usage of k8ssandra.
   copyright:
     - license: Apache-2.0
+  resources:
+    memory: 6Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: e18850cdd7902d9be32d8e67e05193fd584a1217
+      expected-commit: 6c00623dffed78864f7cf5cc99db9c2efb8fc3e0
       repository: https://github.com/k8ssandra/k8ssandra-client
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+        github.com/moby/spdystream@v0.5.1
 
   - uses: go/build
     with:
@@ -28,17 +36,37 @@ update:
 subpackages:
   - name: k8ssandra-client-compat
     description: Compatibility package to place binaries in the location expected by upstream Dockerfile
+    dependencies:
+      runtime:
+        - k8ssandra-client
     pipeline:
       - runs: |
           mkdir -p "${{targets.contextdir}}"
           ln -sf /usr/bin/kubectl-k8ssandra ${{targets.contextdir}}/kubectl-k8ssandra
-    # test added by a robot (compat)
     test:
       pipeline:
-        - runs: |
-            readlink -v /kubectl-k8ssandra
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
 test:
+  environment:
+    contents:
+      packages:
+        - kubectl
   pipeline:
-    - runs: |
-        kubectl-k8ssandra --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: kubectl-k8ssandra
+        expect-contains: register "Available Commands"
+    - name: Verify subcommand help output
+      runs: |
+        set -euo pipefail
+        # Verify key subcommands are present and show help
+        kubectl-k8ssandra register --help 2>&1 | grep -F "register"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

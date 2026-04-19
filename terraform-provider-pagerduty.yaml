@@ -1,23 +1,30 @@
 package:
   name: terraform-provider-pagerduty
-  version: "3.30.8"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "3.32.2"
+  epoch: 0 # CVE-2026-32280
   description: Terraform provider for Pagerduty
   copyright:
     - license: MPL-2.0
   dependencies:
     runtime:
       - terraform-local-provider-config
+  resources:
+    cpu: "2"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 106953aabaf64d6847e044535e63ed7843aed2de
+      expected-commit: fa73a4c1671598309afc56c7e737000d84bbe789
       repository: https://github.com/pagerduty/terraform-provider-pagerduty
       tag: v${{package.version}}
 
   - uses: go/build
     with:
+      go-package: go-1.25
       output: terraform-provider-pagerduty
       packages: .
       vendor: "true"
@@ -36,14 +43,21 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        # Capture output first, then grep it
-        terraform-provider-pagerduty > /tmp/output.txt 2>&1 || true
-        if grep -qi "This binary is a plugin." /tmp/output.txt; then
-          echo "Test passed: Found expected plugin message"
-          exit 0
-        else
-          echo "Test failed: Did not find expected plugin message"
-          cat /tmp/output.txt
-          exit 1
-        fi
+    - uses: test/tw/ldd-check
+    - name: Verify provider plugin protocol handshake
+      runs: |
+        # Terraform providers use HashiCorp go-plugin framework.
+        # When run directly, they output a message indicating they are plugins
+        # and exit non-zero. Capture stderr and verify the expected output.
+        set +e
+        terraform-provider-pagerduty 2>/tmp/provider-out.txt
+        set -e
+        grep -Fi "plugin" /tmp/provider-out.txt
+    - uses: test/tw/symlink-check
+      with:
+        allow-absolute: true
+
+environment:
+  contents:
+    packages:
+      - go-1.25

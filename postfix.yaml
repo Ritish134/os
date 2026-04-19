@@ -1,7 +1,7 @@
 package:
   name: postfix
-  version: "3.10.7"
-  epoch: 0
+  version: "3.11.1"
+  epoch: 1
   description: Secure and fast drop-in replacement for Sendmail (MTA)
   copyright:
     - license: IPL-1.0 OR EPL-2.0
@@ -21,10 +21,10 @@ package:
   dependencies:
     runtime:
       - merged-usrsbin
-      - rspamd
-      - sasl-xoauth2
-      - supervisor
       - wolfi-baselayout
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 environment:
   contents:
@@ -58,12 +58,14 @@ data:
       sqlite:
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: fcd3ff70806ae7f0a82e7b5c301e2f4fcfa6a689a2dbb3b3f1b5e5208115788a
-      uri: https://de.postfix.org/ftpmirror/official/postfix-${{package.version}}.tar.gz
+      repository: https://github.com/vdukhovni/postfix
+      tag: v${{package.version}}
+      expected-commit: 3f93cde4b893767680f105b1c41d352bd37616b8
 
-  - runs: |
+  - working-directory: postfix
+    runs: |
       _mvline() {
         # Assigning arguments to variables
         local regex="$1"
@@ -118,6 +120,11 @@ pipeline:
 
       # Add LMDB settings and make it default
       ccargs="$ccargs -DHAS_LMDB $(pkg-config --cflags lmdb) -DDEF_DB_TYPE=\\\"lmdb\\\""
+
+      # Set default cache db type to lmdb since we build with -DNO_DB (no Berkeley DB).
+      # This is an official parameter added in Postfix 3.11:
+      # https://www.postfix.org/postconf.5.html#default_cache_db_type
+      ccargs="$ccargs -DDEF_CACHE_DB_TYPE=\\\"lmdb\\\""
 
       # Fix build error with gcc 15.
       # TODO: remove once postfix 3.11 released
@@ -181,7 +188,7 @@ pipeline:
       	"${{targets.contextdir}}"/usr/share/doc/postfix/defaults/
       mv "${{targets.contextdir}}"/etc/postfix/*LICENSE* \
       	"${{targets.contextdir}}"/usr/share/licenses/postfix/
-      install -Dm755 postfix.initd "${{targets.contextdir}}"/etc/init.d/postfix
+      install -Dm755 ../postfix.initd "${{targets.contextdir}}"/etc/init.d/postfix
       chown postfix "${{targets.contextdir}}"/var/spool/postfix/* "${{targets.contextdir}}"/var/lib/postfix
       chown root:postfix "${{targets.contextdir}}"/var/spool/postfix/pid
       chgrp postdrop "${{targets.contextdir}}"/var/spool/postfix/maildrop \
@@ -223,14 +230,19 @@ subpackages:
   - name: postfix-stone
     description: Postfix simulation and testing tools
     pipeline:
-      - runs: |
+      - working-directory: postfix
+        runs: |
           mkdir -p "${{targets.contextdir}}"/usr/bin
           install -Dm755 src/fsstone/fsstone "${{targets.contextdir}}"/usr/bin/fsstone
           find src/smtpstone -mindepth 1 -perm 0755 -exec cp {} "${{targets.contextdir}}"/usr/bin \;
     dependencies:
       runtime:
         - merged-usrsbin
+        - postfix
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - range: _subpackages
     name: postfix-${{range.key}}
@@ -257,8 +269,10 @@ subpackages:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 3693
+  github:
+    identifier: vdukhovni/postfix
+    strip-prefix: v
+    tag-filter-prefix: v
 
 test:
   pipeline:

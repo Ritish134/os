@@ -1,6 +1,6 @@
 package:
   name: firefox
-  version: "146.0.1"
+  version: "149.0.2"
   epoch: 0
   description: Firefox web browser
   copyright:
@@ -14,7 +14,7 @@ package:
       - mesa-glx
       - pciutils-libs
   resources:
-    cpu: 30
+    cpu: "66"
     memory: 60Gi
 
 vars:
@@ -36,6 +36,7 @@ environment:
       - dbus-libs
       - expat-dev
       - fribidi-dev
+      - geckodriver
       - glib-dev
       - gnutar
       - gtk-3
@@ -71,7 +72,18 @@ pipeline:
   - uses: fetch
     with:
       uri: https://ftp.mozilla.org/pub/firefox/releases/${{package.version}}/source/firefox-${{package.version}}.source.tar.xz
-      expected-sha256: e9678a0e8473923953e1dc312c37919068623b6aa20adade16266049258191eb
+      expected-sha256: 6a931a2cf087164c689099c3856b3091a7e156a7b94fab8ab5712affe87870ce
+
+  - name: Move glslopt so that we can patch it
+    runs: |
+      mkdir -p build/rust/
+      mv third_party/rust/glslopt build/rust/
+
+  - uses: patch
+    with:
+      patches: |
+        0001-Patch-glsl-optimizer-to-build-with-glibc-2.43.patch
+        0002-Fix-sandbox-to-build-with-glibc-2.43.patch
 
   - runs: |
       # Craft the name of the final distfile.
@@ -117,6 +129,36 @@ pipeline:
       tar -xvf ${distfile} -C ${{targets.destdir}}/usr/lib
       ln -s /usr/lib/firefox/firefox ${{targets.destdir}}/usr/bin/firefox
       ln -s /usr/bin/firefox ${{targets.destdir}}/usr/bin/firefox-bin
+
+subpackages:
+  # https://github.com/SeleniumHQ/docker-selenium/blob/trunk/NodeFirefox/Dockerfile
+  - name: firefox-docker-selenium-compat
+    description: Browser configuration files for Firefox in Selenium Grid nodes
+    dependencies:
+      runtime:
+        - firefox
+        - geckodriver
+    pipeline:
+      - runs: |
+          GECKODRIVER_VERSION=$(geckodriver --version | awk 'NR==1{print $2}')
+          mkdir -p ${{targets.contextdir}}/opt/selenium
+          mkdir -p ${{targets.contextdir}}/opt/selenium/browsers/firefox
+          ln -s /usr/bin/geckodriver ${{targets.contextdir}}/opt/selenium/geckodriver-${GECKODRIVER_VERSION}
+          echo "firefox" > ${{targets.contextdir}}/opt/selenium/browsers/firefox/name
+          echo "${{package.version}}" > ${{targets.contextdir}}/opt/selenium/browsers/firefox/version
+          printf '{"moz:firefoxOptions": {"binary": "/usr/bin/firefox"}}' \
+            > ${{targets.contextdir}}/opt/selenium/browsers/firefox/binary_location
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /opt/selenium/browsers/firefox/name
+              /opt/selenium/browsers/firefox/version
+              /opt/selenium/browsers/firefox/binary_location
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
 update:
   enabled: true

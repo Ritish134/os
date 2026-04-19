@@ -1,7 +1,7 @@
 package:
   name: py3-build
-  version: "1.3.0"
-  epoch: 0
+  version: "1.4.2"
+  epoch: 1
   description: A simple, correct Python build frontend
   copyright:
     - license: MIT
@@ -35,7 +35,7 @@ pipeline:
     with:
       repository: https://github.com/pypa/build
       tag: ${{package.version}}
-      expected-commit: 60e8752f69178d2b2c3563e9c8fa17aa6e11b12c
+      expected-commit: 7b7ae078aa1dabff33ea72d07ed15dd298acf80a
 
 subpackages:
   - range: py-versions
@@ -53,6 +53,7 @@ subpackages:
           python: python${{range.key}}
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -73,16 +74,10 @@ subpackages:
           mv ${{targets.contextdir}}/../py${{range.key}}-${{vars.pypi-package}}/usr/bin ${{targets.contextdir}}/usr
     test:
       pipeline:
-        - runs: |
-            set +x
-            fail() { echo "FAIL:" "$@"; exit 1; }
-
-            set -- pyproject-build --version
-            ver=${{package.version}}
-            out=$("$@") || fail "$* exited $?"
-            echo "$out" | grep -q -wF "$ver" ||
-                fail "FAIL: '$*' did not contain '$ver': $out"
-            echo "PASS: '$*' contained '$ver'"
+        - uses: test/tw/ver-check
+          with:
+            bins: pyproject-build
+            version: ${{package.version}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.

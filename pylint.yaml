@@ -1,17 +1,16 @@
 package:
   name: pylint
-  version: "4.0.4"
-  epoch: 0
+  version: "4.0.5"
+  epoch: 2 # fix runtime deps and add pip-check/import tests
   description: A static code analyser for Python 2 and 3
   copyright:
     - license: GPL-2.0-only
   dependencies:
     runtime:
-      - py${{vars.python-version}}-astroid
-      - py${{vars.python-version}}-dill
-      - py${{vars.python-version}}-isort
-      - py${{vars.python-version}}-platformdirs
-      - py${{vars.python-version}}-tomlkit
+      - python-${{vars.python-version}}-base
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 vars:
   python-version: 3.13
@@ -30,9 +29,11 @@ pipeline:
     with:
       repository: https://github.com/pylint-dev/pylint
       tag: v${{package.version}}
-      expected-commit: e16f942166511d6fb4427e503a734152fae0c4fe
+      expected-commit: 88e1ab7545a4af4aea15c305a154c164a95ab842
 
   - uses: py/pip-build-install
+    with:
+      python: python${{vars.python-version}}
 
   - uses: strip
 
@@ -45,9 +46,15 @@ update:
 test:
   pipeline:
     - runs: |
+        set -euo pipefail
         pylint --version | grep ${{package.version}}
         pylint --help
         pylint-config --version
         pyreverse --version
         pyreverse --help
         symilar --help
+    - uses: test/tw/pip-check
+    - uses: python/import
+      with:
+        python: python${{vars.python-version}}
+        import: pylint

@@ -1,7 +1,7 @@
 package:
   name: aws-efs-csi-driver
-  version: "2.2.0"
-  epoch: 1 # GHSA-r6j8-c6r2-37rr
+  version: "3.0.1"
+  epoch: 0 # CVE-2026-32280
   description: CSI driver for Amazon EFS.
   copyright:
     - license: Apache-2.0
@@ -13,18 +13,16 @@ package:
       - openssl
       - tcpdump
       - umount
+  resources:
+    cpu: "3"
+    memory: 9Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/kubernetes-sigs/aws-efs-csi-driver
       tag: v${{package.version}}
-      expected-commit: 06690456920b10a2f8f4c49a8e38d73670c3f930
-
-  - uses: go/bump
-    with:
-      deps: |-
-        k8s.io/kubernetes@v1.33.6
+      expected-commit: 67e06b12c312c29b8e97abb0001eee3f0a520365
 
   - uses: go/build
     with:
@@ -54,6 +52,17 @@ update:
 
 test:
   pipeline:
-    - runs: |
-        aws-efs-csi-driver --version
-        aws-efs-csi-driver --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: aws-efs-csi-driver
+    - uses: test/tw/help-check
+      with:
+        bins: aws-efs-csi-driver
+    - name: Verify embedded build metadata
+      runs: |
+        set -euo pipefail
+        # Verify the ldflags-embedded version and client source are present in version output
+        output=$(aws-efs-csi-driver --version 2>&1)
+        echo "$output" | grep -F "${{package.version}}"
+        echo "$output" | grep -F "k8s"

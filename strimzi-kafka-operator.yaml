@@ -1,7 +1,7 @@
 package:
   name: strimzi-kafka-operator
-  version: "0.49.1"
-  epoch: 2 # GHSA-vc5p-v9hr-52mj
+  version: "0.51.0"
+  epoch: 21 # GHSA-pwqr-wmgm-9rr8
   description: Apache Kafka® running on Kubernetes
   copyright:
     - license: Apache-2.0
@@ -11,6 +11,10 @@ package:
       - strimzi-kafka-operator-kafka-init
       - strimzi-kafka-operator-topic-operator
       - strimzi-kafka-operator-user-operator
+      - strimzi-kafka-operator-v1-api-conversion
+  resources:
+    cpu: "7"
+    memory: 5Gi
 
 environment:
   contents:
@@ -41,7 +45,7 @@ environment:
     DEST_DIR: opt/strimzi
 
 vars:
-  java-version: '17' # https://github.com/strimzi/strimzi-kafka-operator/blob/0.48.0/development-docs/DEV_GUIDE.md#java-versions
+  java-version: '21' # https://github.com/strimzi/strimzi-kafka-operator/blob/0.50.0/development-docs/DEV_GUIDE.md#java-versions
   shellcheck_version: 0.10.0
   shellcheck_aarch64_shasum512: 77abeaa8bee293264ebfd94a2021bd490695ed5518f2da7c0f9ec4b402cd1e5da6642a0e9f953961510cef7351cc9afae7c7a528a597d1befd1867b8c69e15b1
   shellcheck_x86_64_shasum512: 31006830087c2b9ffe9fa36c1ab4a8b11c85078cac8203265d0cfd630c70a4a506e66dd9d7ccde964360ad95045894149de457db34f10cad76708c7a4aa544ca
@@ -51,9 +55,13 @@ pipeline:
     with:
       repository: https://github.com/strimzi/strimzi-kafka-operator
       tag: ${{package.version}}
-      expected-commit: eb359e808dee4f00230ed031bd381cd2a2f94b9c
+      expected-commit: 54081abf97d0e5e524de773b88343756934db1a8
 
   - uses: maven/pombump
+
+  - uses: patch
+    with:
+      patches: lz4-yawk-fork-cc.patch
 
   - uses: maven/pombump
     with:
@@ -62,8 +70,8 @@ pipeline:
 
   - uses: maven/pombump
     with:
-      patch-file: pombump-deps-4.0.x.yaml
-      pom: docker-images/artifacts/kafka-thirdparty-libs/4.0.x/pom.xml
+      patch-file: pombump-deps-4.2.x.yaml
+      pom: docker-images/artifacts/kafka-thirdparty-libs/4.2.x/pom.xml
 
   - uses: maven/pombump
     with:
@@ -131,6 +139,23 @@ subpackages:
           ln -sf /$DEST_DIR/lib/io.strimzi.${{range.key}}-$(cat release.version).jar ${{targets.contextdir}}/usr/lib/kafka/libs/
           # They omit `io.strimzi` on upstream Makefile
           ln -sf /$DEST_DIR/lib/io.strimzi.${{range.key}}-$(cat release.version).jar ${{targets.contextdir}}/usr/lib/kafka/libs/${{range.key}}-$(cat release.version).jar
+    test:
+      pipeline:
+        - uses: test/jar-check
+
+  - name: "${{package.name}}-v1-api-conversion"
+    description: "V1 API conversion tool for Strimzi Kafka Operator"
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.contextdir}}"/opt/v1-api-conversion
+          unzip -o "$SRC_DIR/v1-api-conversion-*-dist.zip" -d "${{targets.contextdir}}"/opt/v1-api-conversion
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /opt/v1-api-conversion/bin/v1-api-conversion.sh
+              /opt/v1-api-conversion/libs
 
   - name: "${{package.name}}-kafka-thirdparty-libs"
     description: "Required libraries for the Strimzi/Kafka"
@@ -142,8 +167,11 @@ subpackages:
         pipeline:
           - runs: |
               mkdir -p "${{targets.contextdir}}"/usr/lib/kafka/libs/
-              cp -r ./4.0.x/target/dependency/* "${{targets.contextdir}}"/usr/lib/kafka/libs/
+              cp -r ./4.2.x/target/dependency/* "${{targets.contextdir}}"/usr/lib/kafka/libs/
               cp -r ./4.1.x/target/dependency/* "${{targets.contextdir}}"/usr/lib/kafka/libs/
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - name: "${{package.name}}-kafka-thirdparty-libs-cc"
     description: "Required 3rd party libraries for the Cruise Control"
@@ -153,6 +181,9 @@ subpackages:
           - runs: |
               mkdir -p "${{targets.contextdir}}"/$CRUISE_CONTROL_HOME/libs
               cp -r ./* "${{targets.contextdir}}"/$CRUISE_CONTROL_HOME/libs/
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
   - name: "${{package.name}}-kafka-base"
     description: "Required files for the Strimzi/Kafka container image"
@@ -204,6 +235,15 @@ subpackages:
           for dir in bin config libs logs; do
             ln -s /usr/lib/kafka/$dir ${{targets.contextdir}}/opt/kafka/$dir
           done
+    test:
+      environment:
+        contents:
+          packages:
+            - kafka
+      pipeline:
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
   - name: kafka_exporter-strimzi-compat
     description: "Compatibility package to place binaries in the location expected by upstream Dockerfile"
@@ -212,14 +252,15 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/opt/kafka-exporter
           # https://github.com/strimzi/strimzi-kafka-operator/blob/23c0fb0726e1f212c6182eb251ff23697e72a353/docker-images/kafka-based/kafka/Dockerfile#L33
           ln -sf /usr/bin/kafka_exporter ${{targets.contextdir}}/opt/kafka-exporter/kafka_exporter
-
-  - name: prometheus-jmx-exporter-strimzi-compat
-    description: "Compatibility package to create a symlink between folders for prometheus_jmx_exporter package which is expected by upstream Dockerfile"
-    pipeline:
-      - runs: |
-          mkdir -p ${{targets.contextdir}}/opt/prometheus-jmx-exporter/
-          # https://github.com/strimzi/strimzi-kafka-operator/blob/3f657dfadf053933e27efdf45a662c3b35ea03d5/docker-images/kafka-based/kafka/Dockerfile#L83-L93
-          ln -sf /usr/lib/prometheus/jmx_prometheus_javaagent.jar ${{targets.contextdir}}/opt/prometheus-jmx-exporter/jmx_prometheus_javaagent.jar
+    test:
+      environment:
+        contents:
+          packages:
+            - kafka_exporter
+      pipeline:
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
 update:
   enabled: true

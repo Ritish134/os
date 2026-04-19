@@ -1,14 +1,20 @@
 package:
   name: buildah
-  version: "1.42.2"
+  version: "1.43.1"
   description: "A tool that facilitates building OCI images"
-  epoch: 2 # GHSA-jv3w-x3r3-g6rm
+  epoch: 1 # CVE-2026-32280
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
+      - containers-common
+      - crun
+      - fuse-overlayfs
       - merged-bin
+      - netavark
       - wolfi-baselayout
+  resources:
+    memory: 3Gi
 
 environment:
   contents:
@@ -27,14 +33,22 @@ pipeline:
     with:
       repository: https://github.com/containers/buildah
       tag: v${{package.version}}
-      expected-commit: c0cc97255c76f7a3d87bfdf5e7b97f013f0bfe85
+      expected-commit: 310b1c8f53f3c0a7884f82fe51083577c473490a
 
   - uses: go/bump
     with:
       deps: |-
+        google.golang.org/grpc@v1.79.3
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
         golang.org/x/crypto@v0.45.0
-        github.com/sigstore/fulcio@v1.8.3
         github.com/containernetworking/plugins@v1.9.0
+        github.com/sigstore/fulcio@v1.8.5
+        github.com/sigstore/sigstore@v1.10.4
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - runs: |
       make
@@ -51,8 +65,11 @@ update:
 
 test:
   pipeline:
-    - name: Verify buildah installation
-      runs: |
-        buildah version | grep ${{package.version}} || exit 1
-        buildah --version
-        buildah --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: buildah
+    - uses: test/tw/ver-check
+      with:
+        bins: buildah
+        version: ${{package.version}}

@@ -1,12 +1,15 @@
 package:
   name: py3-setuptools
-  version: "80.9.0"
-  epoch: 4
+  version: "82.0.1"
+  epoch: 0 # go/wolfi-rsc/py3-setuptools
   description: Easily download, build, install, upgrade, and uninstall Python packages
   copyright:
     - license: "MIT"
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 vars:
   import: setuptools
@@ -35,7 +38,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 9c4d383631d3951fcae0afd73b5d08ff5a262976
+      expected-commit: 5a13876673a41e3cd21d4d6e587f53d0fb4fd8e5
       repository: https://github.com/pypa/setuptools.git
       tag: v${{package.version}}
 
@@ -51,6 +54,8 @@ subpackages:
       - uses: py/pip-build-install-bootstrap
         with:
           python: python${{range.key}}
+      # Remove Windows .exe launchers that shouldn't be in Linux APK packages
+      - runs: find "${{targets.contextdir}}" -name '*.exe' -exec rm -f {} +
       - uses: strip
     test:
       pipeline:

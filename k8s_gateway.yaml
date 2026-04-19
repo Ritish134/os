@@ -1,10 +1,13 @@
 package:
   name: k8s_gateway
-  version: "1.6.1"
-  epoch: 4 # GHSA-cfpf-hrx2-8rv6
+  version: "1.7.1"
+  epoch: 0 # GHSA-hfvc-g4fc-pqhx
   description: A CoreDNS plugin to resolve all types of external Kubernetes resources
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 7Gi
 
 update:
   enabled: true
@@ -17,20 +20,20 @@ pipeline:
     with:
       repository: https://github.com/k8s-gateway/k8s_gateway
       tag: v${{package.version}}
-      expected-commit: 8b1cb5ac9b27362a76704a91fdd383bea370b250
+      expected-commit: 49fec276b42805e6dc372d048dcfcbd429bce1ec
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-        github.com/quic-go/quic-go@v0.57.0
-        github.com/expr-lang/expr@v1.17.7
+        google.golang.org/grpc@v1.79.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
       packages: cmd/coredns.go
       ldflags: -X github.com/coredns/coredns/coremain.GitCommit=$(git rev-parse --short HEAD) -X main.pluginVersion=${{package.version}}
       output: coredns
+      go-package: go-1.25
 
 subpackages:
   - name: ${{package.name}}-compat
@@ -38,12 +41,16 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}/
-          ln -sf /usr/bin/coredns ${{targets.contextdir}}/coredns
+          ln -sf ./usr/bin/coredns ${{targets.contextdir}}/coredns
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
         - name: "Verify the symlink"
           runs: |
-            test "$(readlink /coredns)" = "/usr/bin/coredns"
+            test "$(readlink /coredns)" = "./usr/bin/coredns"
 
 test:
   environment:
@@ -52,9 +59,10 @@ test:
         - bind-tools
         - wait-for-port
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Smoke tests
       runs: |
-        set -o pipefail
+        set -euo pipefail
         coredns -help 2>&1 | grep -F -e "Usage of coredns"
         coredns -version 2>&1 | grep -F -e "+k8s_gateway-${{package.version}}"
         coredns -plugins | grep -F -e "k8s_gateway"
@@ -62,6 +70,7 @@ test:
       uses: test/kwok/cluster
     - name: Ensure plugin functionality works
       runs: |
+        set -euo pipefail
         COREDNS_PORT=9999
         KUBECONFIG="$(mktemp)"
         kubectl config view --minify --raw > "${KUBECONFIG}"
@@ -75,7 +84,7 @@ test:
           }
         }
         EOF
-        coredns &> /dev/null &
+        coredns > /tmp/coredns.log 2>&1 &
         COREDNS_PID=$!
         trap 'kill -9 ${COREDNS_PID}' EXIT
 
@@ -84,3 +93,8 @@ test:
         # so the k8s_gateway plugin fails to find valid CRDs for it
         # Lets just dig and get the fail output
         dig @localhost -p "${COREDNS_PORT}" | grep -F -e "->>HEADER<<- opcode: QUERY, status: SERVFAIL"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

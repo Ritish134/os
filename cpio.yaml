@@ -1,13 +1,19 @@
 package:
   name: cpio
   version: "2.15"
-  epoch: 6
+  epoch: 10 # go/wolfi-rsc/cpio
   description: tool to copy files into or out of a cpio or tar archive
   copyright:
     - license: GPL-3.0-or-later
   dependencies:
     runtime:
       - gnutar-rmt
+  resources:
+    cpu: "4"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 vars:
   rmt-path: /usr/libexec/rmt
@@ -64,6 +70,9 @@ subpackages:
     pipeline:
       - uses: split/locales
     description: ${{package.name}} locales
+    test:
+      pipeline:
+        - uses: test/tw/langpackage
 
 update:
   enabled: true

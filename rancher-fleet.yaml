@@ -1,17 +1,31 @@
 package:
   name: rancher-fleet
-  version: "0.14.1"
-  epoch: 0 # CVE-2025-61729
+  version: "0.15.0"
+  epoch: 6 # GHSA-pc3f-x583-g7j2
   description: Deploy workloads from Git to large fleets of Kubernetes clusters
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 9e77da0d13fd9bf21e7acc4accd8f7f0b1f75551
+      expected-commit: c63dc4bb52acb88fea50fe1b5f20db7f3ca6c9d9
       repository: https://github.com/rancher/fleet
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-git/go-git/v5@v5.17.1
+        helm.sh/helm/v4@v4.1.4
+        github.com/moby/spdystream@v0.5.1
+      modroot: |-
+        .
+        integrationtests
+      tidy: false
 
 subpackages:
   - name: ${{package.name}}-agent
@@ -23,6 +37,7 @@ subpackages:
     pipeline:
       - uses: go/build
         with:
+          go-package: go-1.25
           ldflags: |
             -X github.com/rancher/fleet/pkg/version.GitCommit=$(git rev-parse HEAD)
             -X github.com/rancher/fleet/pkg/version.Version=${{package.version}}
@@ -31,12 +46,14 @@ subpackages:
     test:
       pipeline:
         - runs: |
+            set -euo pipefail
             fleetagent --version | grep ${{package.version}}
 
   - name: ${{package.name}}-cli
     pipeline:
       - uses: go/build
         with:
+          go-package: go-1.25
           ldflags: |
             -X github.com/rancher/fleet/pkg/version.GitCommit=$(git rev-parse HEAD)
             -X github.com/rancher/fleet/pkg/version.Version=${{package.version}}
@@ -45,6 +62,7 @@ subpackages:
     test:
       pipeline:
         - runs: |
+            set -euo pipefail
             fleet --version | grep ${{package.version}}
             fleet completion bash | grep -qE "__fleet_debug.*starting completion logic.*"
         - name: "Setup KWOK cluster"
@@ -55,6 +73,7 @@ subpackages:
             kubectl wait --for=condition=Established crd --all --timeout=60s
         - name: "Cleanup cluster registrations"
           runs: |
+            set -euo pipefail
             fleet cleanup clusterregistration | grep "Cleaning up outdated cluster registrations"
 
   - name: ${{package.name}}-controller
@@ -65,6 +84,7 @@ subpackages:
     pipeline:
       - uses: go/build
         with:
+          go-package: go-1.25
           ldflags: |
             -X github.com/rancher/fleet/pkg/version.GitCommit=$(git rev-parse HEAD)
             -X github.com/rancher/fleet/pkg/version.Version=${{package.version}}
@@ -102,8 +122,9 @@ subpackages:
               listening for changes on local cluster
               starting job scheduler
               starting manager
-              successfully acquired lease
+              Successfully acquired lease
             post: |
+              set -euo pipefail
               # Check metrics endpoint
               curl -fsSL http://localhost:8080/metrics | grep "leader_election_master_status"
 
@@ -132,3 +153,8 @@ update:
 test:
   pipeline:
     - uses: test/emptypackage
+
+environment:
+  contents:
+    packages:
+      - go-1.25

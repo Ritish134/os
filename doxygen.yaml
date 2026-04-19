@@ -1,7 +1,7 @@
 package:
   name: doxygen
-  version: "1.16.0"
-  epoch: 0
+  version: "1.16.1"
+  epoch: 2 # go/wolfi-rsc/doxygen
   description: A documentation system for C++, C, Java, IDL and PHP
   copyright:
     - license: GPL-2.0-or-later
@@ -10,6 +10,9 @@ package:
       - bzip2
       - graphviz
       - zlib
+  resources:
+    cpu: "8"
+    memory: 26Gi
 
 environment:
   contents:
@@ -28,11 +31,18 @@ environment:
       - python3
       - samurai
 
+var-transforms:
+  - from: ${{package.version}}
+    match: \.
+    replace: _
+    to: mangled-version
+
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 32eff77733139d8c8e99d18c3aec30f51418c4d3a62834f263487e99e92d2fef
-      uri: https://doxygen.nl/files/doxygen-${{package.version}}.src.tar.gz
+      repository: https://github.com/doxygen/doxygen
+      tag: Release_${{vars.mangled-version}}
+      expected-commit: 669aeeefca743c148e2d935b3d3c69535c7491e6
 
   - runs: |
       cmake -B build -G Ninja \
@@ -49,8 +59,10 @@ pipeline:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 457
+  github:
+    identifier: doxygen/doxygen
+    strip-prefix: Release_
+    tag-filter-prefix: Release_
   version-separator: "_"
 
 subpackages:

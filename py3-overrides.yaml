@@ -1,12 +1,15 @@
 package:
   name: py3-overrides
   version: 7.7.0
-  epoch: 4
+  epoch: 6 # go/wolfi-rsc/py3-overrides
   description: A decorator to automatically detect mismatch when overriding a method.
   copyright:
     - license: Apache-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 vars:
   pypi-package: overrides
@@ -48,6 +51,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

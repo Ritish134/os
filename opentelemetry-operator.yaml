@@ -1,17 +1,28 @@
 package:
   name: opentelemetry-operator
-  version: "0.141.0"
-  epoch: 0 # CVE-2025-61729
+  version: "0.148.0"
+  epoch: 2 # GHSA-hfvc-g4fc-pqhx
   description: Kubernetes Operator for OpenTelemetry Collector
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "5"
+    memory: 12Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/open-telemetry/opentelemetry-operator
       tag: v${{package.version}}
-      expected-commit: fff0d090527e61bd93041806a8b3bc53a5465612
+      expected-commit: 836392be10b7803dbdce03dab0c73cfa681148dc
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
@@ -39,7 +50,15 @@ subpackages:
       - runs: |
           # The helm chart expects the binaries to be in / instead of /usr/bin
           mkdir -p "${{targets.subpkgdir}}"
-          ln -sf /usr/bin/manager ${{targets.subpkgdir}}/manager
+          ln -sf ./usr/bin/manager ${{targets.subpkgdir}}/manager
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
 
   - name: ${{package.name}}-otel-allocator
     description: "OpenTelemetry Allocator"
@@ -64,8 +83,9 @@ subpackages:
             -X github.com/open-telemetry/opentelemetry-operator/internal/version.autoInstrumentationNginx=$(grep -v '\#' versions.txt | grep autoinstrumentation-nginx | awk -F= '{print $2}')
     test:
       pipeline:
-        - runs: |
-            main --help || true # test tends to fail
+        - uses: test/tw/help-check
+          with:
+            bins: main
 
   - name: ${{package.name}}-otel-allocator-compat
     description: "Compatibility package to place binaries in the location expected by upstream helm charts"
@@ -73,7 +93,15 @@ subpackages:
       - runs: |
           # The helm chart expects the binaries to be in / instead of /usr/bin
           mkdir -p "${{targets.contextdir}}"
-          ln -sf /usr/bin/main ${{targets.contextdir}}/main
+          ln -sf ./usr/bin/main ${{targets.contextdir}}/main
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}-otel-allocator
+      pipeline:
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -92,12 +120,14 @@ test:
         - curl
         - helm
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - name: Fetch the testdata from the source repo
       runs: git clone --depth=1 https://github.com/open-telemetry/opentelemetry-operator/
     - name: Install CRDs
       working-directory: opentelemetry-operator/config/crd/
       runs: |
+        set -euo pipefail
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
         helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds --wait
@@ -123,3 +153,8 @@ test:
             echo "Health check failed with status code $STATUS"
             exit 1
         fi
+
+environment:
+  contents:
+    packages:
+      - go-1.25

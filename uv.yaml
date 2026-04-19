@@ -1,14 +1,21 @@
 package:
   name: uv
-  version: "0.9.22"
-  epoch: 0 # GHSA-xwfj-jgwm-7wp5
+  version: "0.11.5"
+  epoch: 0 # use cargo/build pipeline, rust-1.94, add ldd-check test
   description: An extremely fast Python package installer and resolver, written in Rust.
   copyright:
     - license: MIT
+  resources:
+    cpu: "12"
+    memory: 19Gi
+  test-resources:
+    cpu: "1"
+    memory: 3Gi
 
 vars:
   build-pypi-package: uv-build
   build-module-name: uv_build
+  clang-version: 22
 
 data:
   - name: py-versions
@@ -25,26 +32,35 @@ environment:
       - busybox
       - ca-certificates-bundle
       - cargo-auditable
-      - clang
+      - clang-${{vars.clang-version}}
       - cmake
       - maturin
       - openssl-dev
       - perl
       - py3-supported-build-base
       - py3-supported-maturin
-      - rust
+      - rust-1.94
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/astral-sh/uv
       tag: ${{package.version}}
-      expected-commit: 82a6a66b811b172a7506015587b7206742eae1a8
+      expected-commit: 95eaa68c8df627eb915bc355831fd7d169d91fe3
+      destination: uv
 
-  - runs: |
-      cargo auditable build --locked --release
-      install -Dm755 target/release/uv "${{targets.destdir}}"/usr/bin/uv
-      install -Dm755 target/release/uvx "${{targets.destdir}}"/usr/bin/uvx
+  - working-directory: uv
+    uses: rust/cargobump
+
+  - working-directory: uv
+    uses: cargo/build
+    with:
+      output: uv
+
+  - working-directory: uv
+    uses: cargo/build
+    with:
+      output: uvx
 
   - uses: strip
 
@@ -60,7 +76,7 @@ subpackages:
       - uses: py/pip-build-install
         with:
           python: python${{range.key}}
-        working-directory: crates/uv-build
+        working-directory: uv/crates/uv-build
       - name: move usr/bin executables for -bin
         runs: |
           mkdir -p ./cleanup/${{range.key}}/
@@ -110,6 +126,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: uv version and help
       runs: |
         uv --version | grep ${{package.version}}

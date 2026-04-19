@@ -1,13 +1,16 @@
 package:
   name: ruby3.3-jsonpath
   version: 1.1.5
-  epoch: 1
+  epoch: 3
   description: Ruby implementation of http://goessner.net/articles/JsonPath/.
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - ruby${{vars.rubyMM}}-multi_json
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -42,7 +45,9 @@ vars:
 
 test:
   pipeline:
-    - runs: ruby -e "require 'jsonpath'"
+    - uses: test/tw/gem-check
+      with:
+        require: jsonpath
     - name: Simple test
       runs: |
         cat <<EOF > /tmp/test.rb
@@ -60,8 +65,12 @@ test:
           }
         }
         HERE_DOC
-        path = JsonPath.new('$..price')
-        path.on(json)
+        path = JsonPath.new('$.store.book[*].price')
+        prices = path.on(json)
+        raise "Expected 4 prices, got #{prices.length}" unless prices.length == 4
+        raise "Expected first price 8.95, got #{prices[0]}" unless prices[0] == 8.95
+        raise "Expected last price 22.99, got #{prices[3]}" unless prices[3] == 22.99
+        puts "SUCCESS: found prices #{prices.inspect}"
         EOF
         ruby /tmp/test.rb
 

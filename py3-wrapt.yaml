@@ -1,6 +1,6 @@
 package:
   name: py3-wrapt
-  version: "2.0.1"
+  version: "2.1.2"
   epoch: 0
   description: Module for decorators, wrappers and monkey patching.
   copyright:
@@ -35,7 +35,7 @@ pipeline:
     with:
       repository: https://github.com/GrahamDumpleton/wrapt
       tag: ${{package.version}}
-      expected-commit: 14387afb0be60e0a18fb2451bb52a7e7c22b5e1c
+      expected-commit: 1381ae82018e7d7709731f3c7dbc1fc7d68fc8af
 
 subpackages:
   - range: py-versions
@@ -51,6 +51,7 @@ subpackages:
       provider-priority: ${{range.value}}
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - name: Import Test
           uses: python/import
           with:

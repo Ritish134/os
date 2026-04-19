@@ -1,10 +1,19 @@
 package:
   name: libart-lgpl
   version: 2.3.21
-  epoch: 2
+  epoch: 5 # go/wolfi-rsc/libart-lgpl
   description: A library for high-performance 2D graphics
   copyright:
     - license: LGPL-2.0-or-later
+  resources:
+    cpu: "1"
+    memory: 4Gi
+
+var-transforms:
+  - from: ${{package.version}}
+    match: ^(\d+)\.(\d+)\.(\d+)$
+    replace: LIBART_LGPL_${1}_${2}_$3
+    to: tag-name
 
 environment:
   contents:
@@ -17,13 +26,11 @@ environment:
       - libtool
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: fdc11e74c10fc9ffe4188537e2b370c0abacca7d89021d4d303afdf7fd7476fa
-      uri: https://download.gnome.org/sources/libart_lgpl/2.3/libart_lgpl-${{package.version}}.tar.bz2
-
-  - runs: |
-      libtoolize --force && aclocal && autoconf --force && automake --add-missing
+      repository: https://gitlab.gnome.org/Archive/libart_lgpl
+      tag: ${{vars.tag-name}}
+      expected-commit: 7119bfe163a5a5325405acb7eab1b16152e8032a
 
   - runs: autoreconf -vif
 
@@ -47,11 +54,39 @@ subpackages:
         - libart-lgpl
     description: libart-lgpl dev
     test:
+      environment:
+        contents:
+          packages:
+            - build-base
+            - pkgconf
       pipeline:
         - runs: |
             libart2-config --version
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
+        - uses: test/tw/devpackage
+        - name: Test compile and link against libart
+          runs: |
+            set -euo pipefail
+
+            tee test.c <<'EOF'
+            #include <libart_lgpl/libart.h>
+            #include <stdio.h>
+            int main() {
+                double affine[6];
+                art_affine_identity(affine);
+                /* Identity matrix should be [1,0,0,1,0,0] */
+                if (affine[0] != 1.0 || affine[3] != 1.0) {
+                    fprintf(stderr, "FAIL: unexpected identity affine\n");
+                    return 1;
+                }
+                printf("SUCCESS: libart affine identity works\n");
+                return 0;
+            }
+            EOF
+
+            gcc $(pkg-config --cflags libart-2.0) test.c -o test $(pkg-config --libs libart-2.0)
+            ./test
 
 update:
   enabled: true
@@ -59,5 +94,33 @@ update:
     identifier: 21864
 
 test:
+  environment:
+    contents:
+      packages:
+        - libart-lgpl-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and linking
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <libart_lgpl/libart.h>
+        #include <stdio.h>
+        int main() {
+            double affine[6];
+            art_affine_identity(affine);
+            /* Identity matrix should be [1,0,0,1,0,0] */
+            if (affine[0] != 1.0 || affine[3] != 1.0) {
+                fprintf(stderr, "FAIL: unexpected identity affine\n");
+                return 1;
+            }
+            printf("SUCCESS: libart compile and link works\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libart-2.0) test.c -o test $(pkg-config --libs libart-2.0)
+        ./test

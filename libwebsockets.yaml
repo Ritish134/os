@@ -1,10 +1,16 @@
 package:
   name: libwebsockets
-  version: "4.5.2"
-  epoch: 0
+  version: "4.5.8"
+  epoch: 1
   description: C library for lightweight websocket clients and servers
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -24,7 +30,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 85c6f7959fd40d8aaf7a50be3c9b75f08389a01c
+      expected-commit: fbb0baf6af9c4324f0f1591734c78b0089b599d4
       repository: https://github.com/warmcat/libwebsockets
       tag: v${{package.version}}
 
@@ -71,6 +77,7 @@ subpackages:
     description: libwebsockets dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -85,8 +92,28 @@ subpackages:
     description: libwebsocket plugin
 
 test:
+  environment:
+    contents:
+      packages:
+        - build-base
+        - libwebsockets-dev
+        - openssl-dev
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and basic API
+      runs: |
+        tee test.c <<'EOF'
+        #include <libwebsockets.h>
+        #include <stdio.h>
+        int main() {
+            const char *ver = lws_get_library_version();
+            printf("libwebsockets version: %s\n", ver);
+            return 0;
+        }
+        EOF
+        gcc $(pkg-config --cflags libwebsockets) test.c -o test $(pkg-config --libs libwebsockets)
+        ./test
 
 update:
   enabled: true

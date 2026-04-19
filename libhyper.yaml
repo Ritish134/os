@@ -1,10 +1,16 @@
 package:
   name: libhyper
-  version: "1.8.1"
-  epoch: 0
+  version: "1.9.0"
+  epoch: 1 # go/wolfi-rsc/libhyper
   description: "An HTTP library for Rust"
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -21,7 +27,7 @@ pipeline:
     with:
       repository: https://github.com/hyperium/hyper
       tag: v${{package.version}}
-      expected-commit: 166c6cacc74b215674937e782b3ab2cbd8b69883
+      expected-commit: 0d6c7d5469baa09e2fb127ee3758a79b3271a4f0
 
   - runs: |
       RUSTFLAGS="--cfg hyper_unstable_ffi -Clink-arg=-Wl,-soname=libhyper.so.1" cargo rustc --features client,http1,http2,ffi --crate-type cdylib --release
@@ -42,6 +48,9 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/usr/include
           mv capi/include/hyper.h ${{targets.subpkgdir}}/usr/include
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
 
 test:
   pipeline:

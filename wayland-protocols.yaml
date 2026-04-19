@@ -1,10 +1,13 @@
 package:
   name: wayland-protocols
-  version: "1.47"
-  epoch: 0
+  version: "1.48"
+  epoch: 1
   description: Protocols and protocol extensions complementing the Wayland core protocol
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 environment:
   contents:
@@ -21,7 +24,7 @@ pipeline:
     with:
       repository: https://gitlab.freedesktop.org/wayland/wayland-protocols
       tag: ${{package.version}}
-      expected-commit: 88223018d1b578d0d8869866da66d9608e05f928
+      expected-commit: 02e63e74a807afed95bc25a386173110afef24e3
 
   - runs: |
       env
@@ -32,6 +35,18 @@ pipeline:
 
   - uses: strip
 
+subpackages:
+  - name: ${{package.name}}-dev
+    description: Development files for ${{package.name}}
+    pipeline:
+      - uses: split/dev
+    dependencies:
+      runtime:
+        - ${{package.name}}
+    test:
+      pipeline:
+        - uses: test/pkgconf
+
 update:
   enabled: true
   git: {}
@@ -41,14 +56,11 @@ test:
     contents:
       packages:
         - coreutils
-        - libxml2-utils # For xmllint
-        - pkgconf
   pipeline:
-    - uses: test/pkgconf
+    - uses: test/tw/ldd-check
     - name: "Verify installation directory structure"
       runs: |
         test -d /usr/share/wayland-protocols
-        test -d /usr/share/pkgconfig
     - name: "Verify presence of core protocol files"
       runs: |
         for proto in \
@@ -59,3 +71,6 @@ test:
         do
           test -f "/usr/share/wayland-protocols/$proto"
         done
+    - uses: test/tw/xml-syntax-check
+      with:
+        path: /usr/share/wayland-protocols

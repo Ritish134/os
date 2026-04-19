@@ -1,16 +1,17 @@
 package:
   name: perl-cpan-meta-requirements
-  version: "2.143"
-  epoch: 5
+  version: "2.145"
+  epoch: 2
   description: Perl module for cpan meta requirements
   copyright:
     - license: GPL-1.0-or-later OR Artistic-1.0-Perl
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
       - ca-certificates-bundle
@@ -18,10 +19,11 @@ environment:
       - perl-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 6ec7e4697bb5a8cea0ee3c8bd5d4b20ce086168a8084778d6e7a4c37356fdf8b
-      uri: https://cpan.metacpan.org/authors/id/R/RJ/RJBS/CPAN-Meta-Requirements-${{package.version}}.tar.gz
+      repository: https://github.com/Perl-Toolchain-Gang/CPAN-Meta-Requirements
+      tag: release-${{package.version}}
+      expected-commit: a3f14e49ae5133d3cde232e6ad6436bc47a97c31
 
   - uses: perl/make
 
@@ -35,8 +37,11 @@ pipeline:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 206460
+  github:
+    identifier: Perl-Toolchain-Gang/CPAN-Meta-Requirements
+    strip-prefix: release-
+    tag-filter-prefix: release-
+    use-tag: true
 
 subpackages:
   - name: perl-cpan-meta-requirements-doc
@@ -49,4 +54,5 @@ subpackages:
 
 test:
   pipeline:
+    - runs: perl -e "use CPAN::Meta::Requirements"
     - uses: test/no-docs

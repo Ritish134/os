@@ -1,10 +1,13 @@
 package:
   name: shared-mime-info
   version: "2.4"
-  epoch: 6
+  epoch: 10 # go/wolfi-rsc/shared-mime-info
   description: Freedesktop.org Shared MIME Info
   copyright:
     - license: GPL-2.0-or-later
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -23,10 +26,11 @@ environment:
       - xmlto
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 531291d0387eb94e16e775d7e73788d06d2b2fdd8cd2ac6b6b15287593b6a2de
-      uri: https://gitlab.freedesktop.org/xdg/shared-mime-info/-/archive/${{package.version}}/shared-mime-info-${{package.version}}.tar.gz
+      repository: https://gitlab.freedesktop.org/xdg/shared-mime-info
+      tag: ${{package.version}}
+      expected-commit: 9a6d6b8e963935f145f3a1ef446552de6996dada
 
   - uses: meson/configure
     with:
@@ -54,6 +58,9 @@ subpackages:
     pipeline:
       - uses: split/locales
     description: shared-mime-info locales
+    test:
+      pipeline:
+        - uses: test/tw/langpackage
 
 update:
   enabled: true
@@ -66,4 +73,27 @@ test:
     - runs: |
         update-mime-database -v
         update-mime-database -h
+    - name: Test MIME database compilation
+      runs: |
+        set -euo pipefail
+
+        # Create a MIME directory structure with the freedesktop.org XML source
+        mkdir -p /tmp/mime/packages
+        cp /usr/share/mime/packages/freedesktop.org.xml /tmp/mime/packages/
+
+        # Run update-mime-database to compile the MIME database
+        update-mime-database /tmp/mime
+
+        # Verify the binary cache was created
+        stat /tmp/mime/mime.cache
+
+        # Verify other expected output files were generated
+        stat /tmp/mime/globs2
+        stat /tmp/mime/types
+        stat /tmp/mime/magic
+
+        # Verify common MIME types are present in the generated types list
+        grep -F "text/plain" /tmp/mime/types
+        grep -F "application/pdf" /tmp/mime/types
+        grep -F "image/png" /tmp/mime/types
     - uses: test/pkgconf

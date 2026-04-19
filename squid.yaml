@@ -1,18 +1,18 @@
 package:
   name: squid
-  version: "7.3"
-  epoch: 0
+  version: "7.5"
+  epoch: 1
   description: Full-featured Web proxy cache server
   copyright:
     - license: GPL-2.0-or-later
   dependencies:
     runtime:
       - merged-usrsbin
+      - merged-varrun
       - wolfi-baselayout
-  checks:
-    disabled:
-      # Disabled until merged-varrun is done.
-      - tempdir
+  resources:
+    cpu: "7"
+    memory: 16Gi
 
 environment:
   contents:
@@ -42,7 +42,7 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 7365d1bff3ffcb7ca911c96a7b40354144853131
+      expected-commit: 2e58fa81c730f29f6ec52ef8bd056e658e01d50c
       repository: https://github.com/squid-cache/squid.git
       tag: SQUID_${{vars.mangled-package-version}}
 
@@ -76,6 +76,13 @@ pipeline:
 
   - uses: autoconf/make-install
 
+  - runs: |
+      rmdir ${{targets.destdir}}/var/run/squid
+      rmdir ${{targets.destdir}}/var/run
+      install -d ${{targets.destdir}}/run/squid
+      install -Dd ${{targets.destdir}}/usr/lib/tmpfiles.d
+      echo 'd /run/squid 0755 root root' >${{targets.destdir}}/usr/lib/tmpfiles.d/${{context.name}}.conf
+
   - uses: strip
 
 subpackages:
@@ -98,6 +105,12 @@ subpackages:
           mkdir -p ${{targets.subpkgdir}}/usr/bin
           mv entrypoint.sh ${{targets.subpkgdir}}/usr/bin/entrypoint.sh
           chmod 0755 ${{targets.subpkgdir}}/usr/bin/entrypoint.sh
+    test:
+      pipeline:
+        - name: Validate entrypoint shell syntax
+          uses: test/tw/shell-syntax-check
+          with:
+            files: /usr/bin/entrypoint.sh
     dependencies:
       runtime:
         - merged-usrsbin
@@ -127,6 +140,7 @@ test:
       packages:
         - curl
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         squid -v
     - name: Squid Server sniff
@@ -144,7 +158,7 @@ test:
         expected_output: |
           Accepting HTTP Socket connections
           listening port: 3128
-        post: |
+        post: |-
           host="cgr.dev"
           url="https://$host/"
           expected="chainguard"

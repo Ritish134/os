@@ -1,13 +1,19 @@
 # Generated from https://pypi.org/project/fsspec/
 package:
   name: py3-fsspec
-  version: "2025.12.0"
-  epoch: 0
+  version: "2026.3.0"
+  epoch: 1 # go/wolfi-rsc/py3-fsspec
   description: File-system specification
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -37,7 +43,7 @@ data:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: f199984f418ba7bdc5f8b56787e6f572047473a8
+      expected-commit: 49e6189b2cd8ee95b9357bff6a5671ea3b32c2ca
       repository: https://github.com/fsspec/filesystem_spec
       tag: ${{package.version}}
 
@@ -56,6 +62,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

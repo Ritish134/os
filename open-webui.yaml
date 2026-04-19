@@ -1,10 +1,13 @@
 package:
   name: open-webui
-  version: "0.6.43"
-  epoch: 0
+  version: "0.8.12"
+  epoch: 3
   description: User-friendly AI Interface (Supports Ollama, OpenAI API, ...)
   copyright:
     - license: BSD-3-Clause
+  resources:
+    memory: 32Gi
+    cpu: 8
   dependencies:
     runtime:
       - bash-binsh
@@ -32,11 +35,14 @@ vars:
 environment:
   contents:
     packages:
+      - build-base
       - busybox
+      - mariadb-connector-c-dev
       # Does not support NodeJS 23 (as of v0.6.13)
       - nodejs-22
       - npm
       - python-${{vars.python-version}}
+      - python-${{vars.python-version}}-dev
       - uv
   environment:
     NODE_OPTIONS: --max_old_space_size=8192
@@ -56,9 +62,13 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: a7271532f8a38da46785afcaa7e65f9a45e7d753
+      expected-commit: 9bd84258d09eefe7bf975878fb0e31a5dadfe0f8
       repository: https://github.com/open-webui/open-webui
       tag: v${{package.version}}
+
+  - uses: auth/uv
+    with:
+      allow-fallback-indexes: true
 
   - name: Create virtual env / Install open-webui / Install model data
     runs: |
@@ -68,6 +78,9 @@ pipeline:
 
       uv pip install --upgrade pip
 
+      # 9.11.2 has been withdrawn, use an existing version
+      sed -i 's/ddgs==9.11.2/ddgs==9.11.4/' backend/requirements.txt pyproject.toml
+
       # https://github.com/open-webui/open-webui/blob/6f1486ffd0cb288d0e21f41845361924e0d742b3/Dockerfile#L128
       uv pip install -r backend/requirements.txt
       uv pip install .
@@ -76,14 +89,25 @@ pipeline:
       # GHSA-2c2j-9gv5-cj73, GHSA-7f5h-v6xp-fcq8
       uv pip install --upgrade starlette==0.49.1
 
-      # GHSA-m449-cwjh-6pw7
-      uv pip install --upgrade pypdf==6.4.0
+      # GHSA-qpxp-75px-xjcp
+      uv pip install --upgrade pypdf~=6.9.1
+      # GHSA-gfwx-w7gr-fvh7
+      uv pip install --upgrade nltk~=3.9.4
+      uv pip install --upgrade black~=26.3.1
+      uv pip install --upgrade pyjwt~=2.12.0
+      uv pip install --upgrade requests~=2.33.0
+      uv pip install --upgrade urllib3~=2.6.3
+      uv pip install --upgrade anthropic~=0.87.0
 
       # GHSA-g8c6-8fjj-2r4m
       uv pip install --upgrade python-socketio>=5.14.0
 
       # GHSA-9h52-p55h-vw2f
       uv pip install --upgrade mcp>=1.23.0
+
+      uv pip install --upgrade aiohttp==3.13.4
+
+      uv pip install --upgrade pillow~=12.1.1
 
       uv pip uninstall pip
 

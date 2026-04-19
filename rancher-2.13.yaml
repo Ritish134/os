@@ -1,10 +1,13 @@
 package:
   name: rancher-2.13
-  version: "2.13.1"
-  epoch: 0 # GHSA-r6j8-c6r2-37rr
+  version: "2.13.4"
+  epoch: 5 # GHSA-pc3f-x583-g7j2
   description: Complete container management platform
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: 16
+    memory: 24Gi
   dependencies:
     provides:
       - rancher=${{package.full-version}}
@@ -29,9 +32,9 @@ package:
       - helm
       - iproute2
       - ipset
-      - iptables-wrappers
+      - iptables-nft
       - jq
-      - k3s-multicall~${{vars.k3s-major-minor-version}}
+      - k3s-multicall-${{vars.k3s-major-minor-version}}
       - kustomize
       - losetup
       - mount
@@ -74,6 +77,7 @@ environment:
       - cdrkit
       - curl
       - gcc-14-default
+      - go-1.25
       - gpgme-dev
 
 vars:
@@ -91,13 +95,14 @@ pipeline:
     with:
       repository: https://github.com/rancher/rancher
       tag: v${{package.version}}
-      expected-commit: 4c2e04b310799e106c48d7e36f544f5e33b22f0a
+      expected-commit: 13637a346bac544620e32787d3564f63c53d6fd1
 
   - uses: go/bump
     with:
       deps: |-
-        k8s.io/kubernetes@v1.34.2
-      modroot: pkg/apis
+        google.golang.org/grpc@v1.79.3
+      modroot: hack/airgap
+      replaces: golang.org/x/net=golang.org/x/net@v0.48.0
 
   - name: Create directories
     runs: |
@@ -122,6 +127,10 @@ pipeline:
       deps: |-
         github.com/docker/docker@v28.0.0
         github.com/containerd/containerd@v1.7.29
+        google.golang.org/grpc@v1.79.3
+        github.com/russellhaering/goxmldsig@v1.6.0
+        github.com/go-jose/go-jose/v3@v3.0.5
+        github.com/moby/spdystream@v0.5.1
 
   - runs: go generate
 
@@ -168,12 +177,8 @@ pipeline:
   - name: Export k3s images
     runs: |
       # Use the K3S version specified in vars (updated to match k8s 1.32.6)
-      CATTLE_K3S_VERSION="$(
-        curl -fsSL --retry 5 --retry-connrefused "https://github.com/rancher/rancher/raw/refs/tags/v${{package.version}}/package/Dockerfile" \
-          | grep -m1 '^ENV CATTLE_K3S_VERSION' \
-          | sed 's/ENV CATTLE_K3S_VERSION=//' \
-          | tr -d ' '
-      )"
+      curl -fsSL --retry 5 --retry-connrefused "https://github.com/rancher/rancher/raw/refs/tags/v${{package.version}}/package/Dockerfile" -o /tmp/rancher-dockerfile
+      CATTLE_K3S_VERSION="$(grep -m1 '^ENV CATTLE_K3S_VERSION' /tmp/rancher-dockerfile | sed 's/ENV CATTLE_K3S_VERSION=//' | tr -d ' ')"
       # Extract major.minor version from CATTLE_K3S_VERSION (e.g., v1.32.1+k3s1 -> 1.32)
       CATTLE_K3S_MAJOR_MINOR="$(echo "$CATTLE_K3S_VERSION" | sed 's/^v//' | cut -d. -f1,2)"
       if [[ ${{vars.k3s-major-minor-version}} != "$CATTLE_K3S_MAJOR_MINOR" ]]; then

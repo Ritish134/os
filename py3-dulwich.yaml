@@ -1,13 +1,16 @@
 # Generated from https://pypi.org/project/dulwich/
 package:
   name: py3-dulwich
-  version: "0.25.0"
-  epoch: 0
+  version: "1.1.0"
+  epoch: 1 # go/wolfi-rsc/py3-dulwich
   description: Python Git Library
   copyright:
     - license: Apache-2.0 AND GPL-2.0-or-later
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 6Gi
 
 vars:
   pypi-package: dulwich
@@ -35,7 +38,7 @@ pipeline:
     with:
       repository: https://github.com/jelmer/dulwich
       tag: dulwich-${{package.version}}
-      expected-commit: 63704258a7f15a15f60c76d3545092f364493a82
+      expected-commit: 7dddd93c1e6f6d49e8b8911dab94e509710e90c8
 
 subpackages:
   - range: py-versions
@@ -44,6 +47,7 @@ subpackages:
     dependencies:
       runtime:
         - py${{range.key}}-typing-extensions
+        - py${{range.key}}-urllib3
       provider-priority: ${{range.value}}
     pipeline:
       - uses: py/pip-build-install
@@ -55,6 +59,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

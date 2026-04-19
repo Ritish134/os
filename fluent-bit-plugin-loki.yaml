@@ -1,10 +1,13 @@
 package:
   name: fluent-bit-plugin-loki
-  version: "3.6.3"
-  epoch: 0 # CVE-2025-58187
+  version: "3.7.1"
+  epoch: 3 # GHSA-hfvc-g4fc-pqhx
   description: The Fluent Bit loki plugin allows you to send your log or events to a Loki service.
   copyright:
     - license: AGPL-3.0-or-later
+  resources:
+    cpu: "4"
+    memory: 8Gi
 
 environment:
   contents:
@@ -12,21 +15,30 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     CGO_ENABLED: "1"
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 9385bc6320733e8c19283f058c685e9eaa14c4ac
+      expected-commit: 2c8fff222bab6813374b973ae0eb49043d3ed14e
       repository: https://github.com/grafana/loki
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+      modroot: |-
+        .
+        operator
 
   - uses: go/build
     with:
       packages: ./clients/cmd/fluent-bit/
       modroot: .
+      go-package: go-1.25
       output: out_grafana_loki.so
       ldflags: |
         -X github.com/grafana/loki/v3/pkg/util/build.Branch=$(git rev-parse --abbrev-ref HEAD)

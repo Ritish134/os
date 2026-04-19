@@ -1,25 +1,31 @@
 package:
   name: kube-vip
-  version: "1.0.3"
-  epoch: 1 # CVE-2025-61729
+  version: "1.1.2"
+  epoch: 3 # go/wolfi-rsc/kube-vip
   description: Kubernetes Control Plane Virtual IP and Load-Balancer
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 environment:
   environment:
     CGO_ENABLED: "0"
+  contents:
+    packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 28bec598f5f35dbf0368e59834b9544a5825c90f
+      expected-commit: 04becb6b9e83f2ad6672bce026e1a8d2bc7c1b22
       repository: https://github.com/kube-vip/kube-vip
       tag: v${{package.version}}
 
   - uses: go/build
     with:
-      ldflags: -X=main.Version=${{package.version}} -X=main.Build=$(git rev-parse HEAD) -extldflags -static
+      ldflags: -X=main.Version=${{package.version}} -X=main.Build=$(git rev-parse HEAD)
       output: kube-vip
       packages: .
 
@@ -30,12 +36,14 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"
-          ln -sf /usr/bin/kube-vip ${{targets.subpkgdir}}/kube-vip
-    # test added by a robot (compat)
+          ln -sf usr/bin/kube-vip ${{targets.subpkgdir}}/kube-vip
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: |
-            readlink -v /kube-vip
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -44,13 +52,32 @@ update:
     strip-prefix: v
 
 test:
-  environment:
-    contents:
-      packages:
-        - ${{package.name}}-compat
   pipeline:
-    - runs: |
-        kube-vip -h
-        /kube-vip -h
-        kube-vip version
-        kube-vip --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: kube-vip
+    - uses: test/tw/ver-check
+      with:
+        bins: kube-vip
+        version: ${{package.version}}
+    - name: Verify kube-vip version contains expected fields
+      runs: |
+        set -euo pipefail
+        # Verify version output contains meaningful version information
+        output=$(kube-vip version 2>&1)
+        echo "$output" | grep -F "${{package.version}}"
+        echo "Version output validated successfully"
+    - name: Test kube-vip manifest generation
+      runs: |
+        set -euo pipefail
+        # Test that the manifest subcommand is available and responds
+        # kube-vip manifest pod generates a Kubernetes pod manifest
+        # without requiring a running cluster
+        output=$(kube-vip manifest pod \
+          --interface eth0 \
+          --vip 192.168.0.1 \
+          --arp 2>&1)
+
+        # Verify the output contains Kubernetes manifest content
+        echo "$output" | grep -F "kube-vip"

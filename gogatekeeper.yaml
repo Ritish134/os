@@ -1,17 +1,26 @@
 package:
   name: gogatekeeper
-  version: "4.4.0"
-  epoch: 0 # CVE-2025-61729
+  version: "4.7.1"
+  epoch: 3 # GHSA-hfvc-g4fc-pqhx
   description: An OpenID / Proxy service
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: c5b6784bfdc60f2c9b4846dc2282322b9a4a54ae
+      expected-commit: 33cbe1e84d1b4421fda530965584c95886f41782
       repository: https://github.com/gogatekeeper/gatekeeper
       tag: ${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
@@ -34,14 +43,14 @@ subpackages:
       - runs: |
           # Symlink the binary from usr/bin to /opt/gatekeeper
           mkdir -p "${{targets.contextdir}}"/opt/gatekeeper
-          ln -sf /usr/bin/gatekeeper ${{targets.contextdir}}/opt/gatekeeper/gatekeeper
+          ln -sf ../../usr/bin/gatekeeper ${{targets.contextdir}}/opt/gatekeeper/gatekeeper
     test:
       environment:
         contents:
           packages:
             - ${{package.name}}
       pipeline:
-        - runs: test "$(readlink /opt/gatekeeper/gatekeeper)" = "/usr/bin/gatekeeper"
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -50,11 +59,17 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: gatekeeper
+    - uses: test/tw/ver-check
+      with:
+        bins: gatekeeper
     - runs: |
-        gatekeeper --help
-        gatekeeper --version | grep -q "${{package.version}}"
+        set -euo pipefail
         DIR="/opt/gatekeeper/templates"
-        if stat "$DIR" > /dev/null 2>&1; then
+        if [ -d "$DIR" ]; then
           if [ -z "$(find "$DIR" -mindepth 1 -print -quit)" ]; then
             echo "Directory exists and is empty"
             exit 1

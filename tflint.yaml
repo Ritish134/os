@@ -1,31 +1,36 @@
 package:
   name: tflint
-  version: "0.60.0"
-  epoch: 3 # GHSA-4qg8-fj49-pxjh
+  version: "0.61.0"
+  epoch: 10 # GHSA-xm5m-wgh2-rrg3
   description: A Pluggable Terraform Linter
   copyright:
     - license: MPL-2.0
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/terraform-linters/tflint.git
       tag: v${{package.version}}
-      expected-commit: c932c4d51c367257ba67d7a57abe1b319dab437f
+      expected-commit: c604bd634554b29602eae507e5a75baebb6365bf
 
   - uses: go/bump
     with:
-      # Bump timestamp-authority transitively through sigstore-go to remediate GHSA-4qg8-fj49-pxjh
       deps: |-
-        golang.org/x/crypto@v0.45.0
-        github.com/sigstore/sigstore-go@v1.1.4
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
+        github.com/hashicorp/go-getter@v1.8.6
+        github.com/sigstore/timestamp-authority/v2@v2.0.6
 
   - uses: go/build
     with:
       packages: .
       output: tflint
-
-  - uses: strip
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -50,6 +55,7 @@ subpackages:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/tw/help-check
       with:
         bins: tflint
@@ -75,3 +81,8 @@ test:
         tflint --fix --force
         sed -n '4p' main.tf | grep -F -e "locals {"
         sed -n '5p' main.tf | grep -F -e "}"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

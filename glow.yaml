@@ -1,22 +1,20 @@
 package:
   name: glow
-  version: "2.1.1"
-  epoch: 8 # CVE-2025-61729
+  version: "2.1.2"
+  epoch: 0
   description: Render markdown on the CLI, with pizzazz!
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/charmbracelet/glow
       tag: v${{package.version}}
-      expected-commit: d37e9887875a2faa4baee6a7d090eb357dd63771
-
-  - uses: go/bump
-    with:
-      deps: |-
-        github.com/go-viper/mapstructure/v2@v2.4.0
+      expected-commit: f57087499b407d420cdad1d76d0e1ed33c77a3d8
 
   - uses: go/build
     with:
@@ -38,3 +36,8 @@ test:
     - runs: |
         glow --version
         glow --help
+
+environment:
+  contents:
+    packages:
+      - go-1.25

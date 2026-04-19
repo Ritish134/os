@@ -1,10 +1,16 @@
 package:
   name: flux-helm-controller
-  version: "1.4.5"
-  epoch: 1 # GHSA-j5w8-q4qc-rx2x
+  version: "1.5.3"
+  epoch: 4 # CVE-2026-32280
   description: The GitOps Toolkit Helm reconciler, for declarative Helming
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "5"
+    memory: 9Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -15,20 +21,21 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 3ebc2f57b7323371bf0d067bfb4e411592124bdf
+      expected-commit: 61606cd29a11dc860766a4f7ed32e99d90272707
       repository: https://github.com/fluxcd/helm-controller
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       ldflags: -X main.Version=${{package.version}}
       output: helm-controller
       packages: .
+      go-package: go-1.26
 
 subpackages:
   - name: ${{package.name}}-iamguarded-compat

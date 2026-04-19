@@ -1,10 +1,16 @@
 package:
   name: aws-c-auth
-  version: "0.9.5"
-  epoch: 0
+  version: "0.10.1"
+  epoch: 2
   description: "C99 library implementation of AWS client-side authentication: standard credentials providers and signing"
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -19,14 +25,14 @@ environment:
       - busybox
       - ca-certificates-bundle
       - cmake
-      - openssl-dev
+      - openssl-hardened-dev
       - s2n-tls-dev
       - samurai
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: a4409b95dad40a45b81e5fc9ff96f41386845e4f
+      expected-commit: fc4b87655e5cd3921f18d1859193c74af4102071
       repository: https://github.com/awslabs/aws-c-auth
       tag: v${{package.version}}
 

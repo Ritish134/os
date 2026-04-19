@@ -1,17 +1,23 @@
 package:
   name: trust-manager
-  version: "0.20.3"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "0.22.1"
+  epoch: 0 # CVE-2026-32280
   description: trust-manager is an operator for distributing trust bundles across a Kubernetes cluster.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 6Gi
 
 environment:
   contents:
     packages:
       - build-base
       - busybox
-      - go
+      - go-1.25
 
 pipeline:
   # We can't use go/install because this requires specific ldflags to set the version
@@ -19,7 +25,7 @@ pipeline:
     with:
       repository: https://github.com/cert-manager/trust-manager
       tag: v${{package.version}}
-      expected-commit: 596512c47007e2b303be9a592265bb66e530f1ef
+      expected-commit: 3b91d5d448a0edf4fed012ea82a809a939ce31f0
       destination: trust-manager
 
   - runs: |
@@ -41,6 +47,46 @@ pipeline:
       mkdir -p ${{targets.destdir}}/usr/bin
       install -Dm755 ./bin/trust-manager ${{targets.destdir}}/usr/bin/trust-manager
 
+subpackages:
+  - name: "trust-package"
+    description: "Utility for copying trust packages from bundles"
+    pipeline:
+      - uses: go/build
+        with:
+          packages: .
+          output: copyandmaybepause
+          modroot: trust-manager/trust-packages/debian
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: /usr/bin/copyandmaybepause
+        - name: Test file copying functionality
+          runs: |
+            # Create test directories
+            mkdir -p /tmp/test-input /tmp/test-output
+
+            # Create test JSON files
+            echo '{"test": "data1"}' > /tmp/test-input/file1.json
+            echo '{"test": "data2"}' > /tmp/test-input/file2.json
+
+            # Create non-JSON file (should be ignored)
+            echo "not json" > /tmp/test-input/file.txt
+
+            # Run copyandmaybepause
+            copyandmaybepause /tmp/test-input /tmp/test-output
+
+            # Verify JSON files were copied
+            [ -f /tmp/test-output/file1.json ]
+            [ -f /tmp/test-output/file2.json ]
+
+            # Verify non-JSON file was not copied
+            [ ! -f /tmp/test-output/file.txt ]
+
+            # Verify content matches
+            grep -q '"test": "data1"' /tmp/test-output/file1.json
+            grep -q '"test": "data2"' /tmp/test-output/file2.json
+
 update:
   enabled: true
   github:
@@ -53,7 +99,7 @@ test:
   environment:
     contents:
       packages:
-        - go
+        - go-1.25
         - openssl
         - git
         - curl
@@ -100,8 +146,8 @@ test:
           Starting workers
         timeout: 30
         post: |
-          curl -f http://localhost:6060/readyz | grep -q "ok"
-          curl -s http://localhost:9402/metrics | grep -q trust_manager
+          curl -fsS http://localhost:6060/readyz | grep -q "ok"
+          curl -fsS http://localhost:9402/metrics | grep -q "controller_runtime"
 
           kubectl create namespace cert-manager
 

@@ -1,13 +1,16 @@
 package:
   name: hugo-extended
-  version: "0.154.3"
-  epoch: 0 # CVE-2025-61729
+  version: "0.160.1"
+  epoch: 1 # CVE-2026-32280
   description: The world's fastest framework for building websites.
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - libstdc++
+  resources:
+    cpu: "4"
+    memory: 4Gi
 
 environment:
   contents:
@@ -15,13 +18,14 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/gohugoio/hugo
       tag: v${{package.version}}
-      expected-commit: b1c1bd019f4d65d4ebc979e2157279bb229b457f
+      expected-commit: d6bc8165e62b29d7d70ede01ed01d0f88de327e6
 
   - uses: go/build
     with:
@@ -39,10 +43,11 @@ update:
 
 test:
   pipeline:
-    ##GPT script test
-    - name: Check Hugo version
-      runs: |
-        hugo version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: hugo
+        version: ${{package.version}}
     - name: Create a new Hugo site
       runs: |
         hugo new site test-site

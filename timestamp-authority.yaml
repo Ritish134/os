@@ -1,7 +1,7 @@
 package:
   name: timestamp-authority
-  version: "2.0.4"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "2.0.6"
+  epoch: 0 # CVE-2026-32280
   description: RFC3161 Timestamp Authority
   copyright:
     - license: Apache-2.0
@@ -17,14 +17,14 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sigstore/timestamp-authority
       tag: v${{package.version}}
-      expected-commit: 5ddd4e6ad32117ae431eca6299ed9d29a6d33f5a
+      expected-commit: 9583b6186084a309cb6ccaf4323a29781901e962
 
 subpackages:
   - name: ${{package.name}}-server

@@ -1,11 +1,14 @@
 # Generated from https://github.com/mdub/clamp
 package:
   name: ruby3.4-clamp
-  version: "1.3.3"
-  epoch: 0
+  version: "1.5.2"
+  epoch: 1 # go/wolfi-rsc/ruby3.4-clamp
   description: Clamp provides an object-model for command-line utilities.
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -22,7 +25,7 @@ pipeline:
     with:
       repository: https://github.com/mdub/clamp
       tag: v${{package.version}}
-      expected-commit: e4ff8ef82391b4f625a8033e40b98333182f4548
+      expected-commit: 00bf5894fca60ee4fe3349c02ea30f86ba5f86b7
 
   - uses: ruby/build
     with:
@@ -44,9 +47,9 @@ test:
       packages:
         - ruby-${{vars.rubyMM}}
   pipeline:
-    - runs: |
-        ruby -e "require 'clamp'; puts 'Clamp library loaded successfully!'"
-    - runs: |
+    - uses: test/tw/gem-check
+    - name: Test Clamp command functionality
+      runs: |
         ruby <<-EOF
         require 'clamp'
 
@@ -59,10 +62,7 @@ test:
         end
 
         # Run the command with the required parameter
-        begin
-          HelloCommand.run(["Alice"])
-        rescue SystemExit
-        end
+        HelloCommand.run("hello", ["Alice"])
         puts "Clamp functionality verified!"
         EOF
 

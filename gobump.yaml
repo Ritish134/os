@@ -1,17 +1,20 @@
 package:
   name: gobump
-  version: "0.9.3"
-  epoch: 3 # CVE-2025-61729
+  version: "0.9.4"
+  epoch: 1 # CVE-2026-27140
   description: Go tool to declaratively bump dependencies
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/chainguard-dev/gobump.git
       tag: v${{package.version}}
-      expected-commit: 9fce911fe674475e4119f6e2cdaaa12a79c0deb8
+      expected-commit: f936d244c00c58995773b526e8c0271a148169eb
 
   - uses: go/build
     with:
@@ -32,3 +35,8 @@ test:
     - runs: |
         gobump version
         gobump --help
+
+environment:
+  contents:
+    packages:
+      - go-1.25

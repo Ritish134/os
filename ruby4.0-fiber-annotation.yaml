@@ -1,10 +1,13 @@
 package:
   name: ruby4.0-fiber-annotation
   version: 0.2.0
-  epoch: 0
+  epoch: 2
   description: A mechanism for annotating fibers.
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 environment:
   contents:
@@ -41,11 +44,15 @@ vars:
   gem: fiber-annotation
 
 test:
+  environment:
+    contents:
+      packages:
+        - ruby-${{vars.rubyMM}}
+        - ruby4.0-rspec
+        - ruby4.0-rspec-expectations
   pipeline:
-    - runs: ruby -e "require 'fiber/annotation'"
     - name: Simple test
       runs: |
-        gem install rspec
         cat <<EOF > /tmp/test.rb
         require 'fiber/annotation'
         require 'rspec'
@@ -98,7 +105,7 @@ test:
           end
         end
         EOF
-        ruby /tmp/test.rb
+        rspec /tmp/test.rb
 
 update:
   enabled: true

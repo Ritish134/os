@@ -1,10 +1,13 @@
 package:
   name: libbpf
-  version: "1.6.2"
-  epoch: 0
+  version: "1.7.0"
+  epoch: 3 # go/wolfi-rsc/libbpf
   description: "A library for interacting with the Linux kernel's Berkeley Packet Filter (BPF) facility from user space"
   copyright:
     - license: GPL-2.0-only
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -23,7 +26,7 @@ pipeline:
     with:
       repository: https://github.com/libbpf/libbpf
       tag: v${{package.version}}
-      expected-commit: 45e89348ec74617c11cd5241ccd0ffc91dfd03c4
+      expected-commit: f5dcbae736e5d7f83a35718e01be1a8e3010fa39
 
   - uses: autoconf/make
     with:
@@ -45,6 +48,7 @@ subpackages:
         - libbpf
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -61,7 +65,7 @@ test:
         - build-base
         - libbpf-dev
         - linux-headers
-        - clang
+        - clang-${{vars.clang-version}}
   pipeline:
     - name: "Check libbpf.h header"
       runs: |
@@ -72,7 +76,7 @@ test:
         test -f /usr/lib64/libbpf.so
     - name: "Compile BPF program and user space program"
       runs: |
-        cat > bpf_prog.c << EOF
+        cat > bpf_prog.c <<'EOF'
         #include <linux/bpf.h>
         #include <bpf/bpf_helpers.h>
 
@@ -86,7 +90,7 @@ test:
         char LICENSE[] SEC("license") = "GPL";
         EOF
 
-        cat > user_prog.c << EOF
+        cat > user_prog.c <<'EOF'
         #include <stdio.h>
         #include <unistd.h>
         #include <bpf/libbpf.h>
@@ -116,3 +120,6 @@ test:
 
         # Run the program to check if it can open the BPF object
         ./user_prog
+
+vars:
+  clang-version: 22

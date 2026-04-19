@@ -1,6 +1,6 @@
 package:
   name: go-1.25
-  version: "1.25.5"
+  version: "1.25.9"
   epoch: 0
   description: "the Go programming language"
   copyright:
@@ -11,6 +11,9 @@ package:
     runtime:
       - bash
       - build-base
+  resources:
+    cpu: "6"
+    memory: 8Gi
 
 environment:
   contents:
@@ -26,7 +29,7 @@ pipeline:
     with:
       repository: https://github.com/golang/go
       tag: go${{package.version}}
-      expected-commit: fefb02adf45c4bcc879bd406a8d61f2a292c26a9
+      expected-commit: 7076e01d9d450bae9f25be76f45d58cc52e2aad2
 
   - uses: patch
     with:
@@ -78,11 +81,7 @@ data:
   - name: tools
     items:
       asm: ""
-      covdata: ""
       cover: ""
-      test2json: ""
-      nm: ""
-      objdump: ""
 
 subpackages:
   - name: "${{package.name}}-doc"
@@ -101,10 +100,21 @@ subpackages:
     dependencies:
       provides:
         - go-${{range.key}}=${{package.full-version}}
+      runtime:
+        - ${{package.name}}=${{package.full-version}}
     pipeline:
       - runs: |
           find "${{targets.destdir}}/usr/lib/go/pkg/tool" -type f -name "${{range.key}}" \
             -exec install -Dm755 \{\} "${{targets.contextdir}}/usr/bin/${{range.key}}" \;
+    test:
+      pipeline:
+        - runs: |
+            # Note: set +eo pipefail is intentionally added here.
+            # Go's flag package exits with code 2 on -help; pipefail would
+            # propagate that non-zero exit even when grep succeeds.
+            # The pipe returns grep's exit code, which is what we want.
+            set +eo pipefail
+            ${{range.key}} -help 2>&1 | grep -iF "usage"
 
 update:
   enabled: true

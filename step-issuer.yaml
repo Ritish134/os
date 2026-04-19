@@ -1,29 +1,43 @@
 package:
   name: step-issuer
-  version: "0.9.11"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "0.10.2"
+  epoch: 6 # CVE-2026-32280
   description: A certificate issuer for cert-manager using step certificates CA
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   environment:
     CGO_ENABLED: "0"
+  contents:
+    packages:
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/smallstep/step-issuer
       tag: v${{package.version}}
-      expected-commit: c639f2c3785880b94059b023f9cf218e5613f63f
+      expected-commit: 83de36c8b89a4c676d9d4e59ba01074de240339e
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v3@v3.0.5
+        github.com/go-jose/go-jose/v4@v4.1.4
 
   - uses: go/build
     with:
       packages: ./
       output: step-issuer
-      ldflags: -w -X "main.Version=${{package.version}}"
-
-  - uses: strip
+      go-package: go-1.25
+      ldflags: -X "main.Version=${{package.version}}"
 
 subpackages:
   - name: ${{package.name}}-compat
@@ -33,12 +47,11 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}
-          ln -sf /usr/bin/step-issuer ${{targets.contextdir}}/manager
+          ln -sf ./usr/bin/step-issuer ${{targets.contextdir}}/manager
     description: Helm chart compatibility
     test:
       pipeline:
-        - runs: |
-            /manager -h
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -53,6 +66,7 @@ test:
         - curl
         - ca-certificates-bundle
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Run Help Command
       runs: |
         /usr/bin/step-issuer -h
@@ -69,7 +83,7 @@ test:
         setup: |
           kubectl config view --minify --raw > /tmp/kubeconfig.yaml
         start: |
-          step-issuer --logtostderr=true --zap-log-level=debug --disable-approval-check --metrics-addr=":8080" --kubeconfig=/tmp/kubeconfig.yaml
+          /usr/bin/step-issuer --logtostderr=true --zap-log-level=debug --disable-approval-check --metrics-bind-address=":8080" --kubeconfig=/tmp/kubeconfig.yaml
         timeout: 180
         expected_output: |
           starting manager

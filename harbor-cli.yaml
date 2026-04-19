@@ -1,18 +1,21 @@
 package:
   name: harbor-cli
-  version: "0.0.15"
-  epoch: 1 # CVE-2025-61729
+  version: "0.0.18"
+  epoch: 2 # CVE-2026-32280
   description: Official Harbor CLI
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 81364cd1d2b3e4a47b886d03df00149a67ae6f7e
+      expected-commit: 03ce614891616c6587ad6da1b5e3c0d51c0deaf2
       repository: https://github.com/goharbor/harbor-cli
       tag: v${{package.version}}
 
@@ -35,3 +38,8 @@ update:
   github:
     identifier: goharbor/harbor-cli
     strip-prefix: v
+
+environment:
+  contents:
+    packages:
+      - go-1.25

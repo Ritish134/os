@@ -1,11 +1,15 @@
 properties:
+  - property: fasterxml.jackson.version
+    value: "2.21.1"
   - property: commons-lang3.version
     value: "3.18.0"
   - property: hadoop.version
     value: "3.4.2"
   - property: netty.version
-    value: "4.2.7.Final"
+    value: "4.2.11.Final"
   - property: jersey.version
     value: "3.0.17"
   - property: log4j.version
     value: "2.25.3"
+  - property: vertx-core
+    value: "4.5.24"

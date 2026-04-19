@@ -1,27 +1,29 @@
 package:
   name: x509-certificate-exporter
-  version: "3.19.1"
-  epoch: 7 # GHSA-j5w8-q4qc-rx2x
+  version: "3.20.1"
+  epoch: 2 # CVE-2026-32280
   description: A Prometheus exporter to monitor x509 certificates expiration in Kubernetes clusters or standalone.
   copyright:
     - license: MIT
+  resources:
+    cpu: "3"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/enix/x509-certificate-exporter
       tag: v${{package.version}}
-      expected-commit: 11d8af41e6dc685344114d10a9cb7c0cdc5adf78
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
+      expected-commit: 0bf10f5f5a3e4159ac6e02c2c49877cea9224c80
 
   - uses: go/build
     with:
       packages: ./cmd/x509-certificate-exporter
       output: x509-certificate-exporter
+      go-package: go-1.25
       ldflags: |
         -X github.com/enix/x509-certificate-exporter/v3/internal.Version=${{package.version}}
         -X github.com/enix/x509-certificate-exporter/v3/internal.Revision=$(git rev-parse HEAD)
@@ -33,7 +35,15 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.contextdir}}"
-          ln -sf /usr/bin/x509-certificate-exporter ${{targets.contextdir}}/x509-certificate-exporter
+          ln -sf ./usr/bin/x509-certificate-exporter ${{targets.contextdir}}/x509-certificate-exporter
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -43,6 +53,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Run and test exporter
       uses: test/daemon-check-output
       with:
@@ -57,3 +68,8 @@ test:
     - uses: test/tw/help-check
       with:
         bins: x509-certificate-exporter
+
+environment:
+  contents:
+    packages:
+      - go-1.25

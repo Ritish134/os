@@ -1,6 +1,6 @@
 package:
   name: py3-narwhals
-  version: "2.15.0"
+  version: "2.19.0"
   epoch: 0
   description: Lightweight and extensible compatibility layer between dataframe libraries
   annotations:
@@ -33,7 +33,7 @@ pipeline:
     with:
       repository: https://github.com/narwhals-dev/narwhals
       tag: v${{package.version}}
-      expected-commit: 98f05d078f09f89e96f7f87af9ad3baf01f13df0
+      expected-commit: 61517f8b644c1404bc6bac477e9eeadc6e45cd98
 
 subpackages:
   - range: py-versions
@@ -50,6 +50,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

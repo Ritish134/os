@@ -1,12 +1,15 @@
 package:
   name: py3-sympy
   version: "1.14.0"
-  epoch: 3
+  epoch: 6 # go/wolfi-rsc/py3-sympy
   description: Computer algebra system (CAS) in Python
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 vars:
   pypi-package: sympy
@@ -56,6 +59,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

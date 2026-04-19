@@ -1,8 +1,8 @@
 # Generated from https://git.alpinelinux.org/aports/plain/main/openrc/APKBUILD
 package:
   name: openrc
-  version: "0.63"
-  epoch: 0
+  version: "0.63.1"
+  epoch: 0 # use grep -F for literal version string match in tests
   description: OpenRC is a dependency-based init system that works with the system provided init program.
   copyright:
     - license: BSD-2-Clause
@@ -12,6 +12,12 @@ package:
       - merged-lib
       - merged-sbin
       - wolfi-baselayout
+  resources:
+    cpu: "1"
+    memory: 3Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -25,7 +31,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/OpenRC/openrc
-      expected-commit: e50e4a8189fd9f58c28343da7fee4f1ee47fe6f1
+      expected-commit: 3cc2d650bbba9420392af7ec78269399c5bdaf43
       tag: ${{package.version}}
 
   - uses: meson/configure
@@ -59,6 +65,9 @@ subpackages:
   - name: openrc-dbg
     pipeline:
       - uses: split/debug
+    test:
+      pipeline:
+        - uses: test/tw/debugpackage
     dependencies:
       runtime:
         - merged-bin
@@ -96,11 +105,20 @@ subpackages:
         - merged-lib
         - merged-sbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - runs: |
+            set -euo pipefail
+            printf "depinfo_0_need_0='sysfs'\n" > /tmp/deptree
+            deptree2dot /tmp/deptree | grep -F "digraph"
 
   - name: openrc-static
     description: openrc static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
     dependencies:
       runtime:
         - merged-bin
@@ -120,6 +138,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
@@ -139,6 +158,12 @@ subpackages:
         - merged-lib
         - merged-sbin
         - wolfi-baselayout
+    test:
+      # agetty requires a TTY device to attach to; not testable in a container
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: /etc/init.d/agetty
 
   - name: openrc-bash-completion
     description: bash completion for openrc
@@ -152,6 +177,9 @@ subpackages:
         - merged-lib
         - merged-sbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
 
   - name: openrc-zsh-completion
     description: zsh completion for openrc
@@ -165,6 +193,9 @@ subpackages:
         - merged-lib
         - merged-sbin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
 
 update:
   enabled: true
@@ -194,8 +225,9 @@ test:
     - uses: test/tw/ldd-check
     - name: Verify openrc installation
       runs: |
+        set -euo pipefail
         openrc --help
-        openrc --version | grep ${{package.version}}
+        openrc --version | grep -F ${{package.version}}
         rc-status --version
         rc-status --help
         openrc-shutdown --version
@@ -211,6 +243,7 @@ test:
         rc-status
     - name: Run nginx
       runs: |
+        set -euo pipefail
         nginx -t
 
         touch /run/openrc/softlevel
@@ -221,7 +254,7 @@ test:
         rc-service nginx status
 
         # Should be up.
-        curl -v localhost:80 | grep "Thank you for using nginx."
+        curl -v localhost:80 | grep -F "Thank you for using nginx."
 
         rc-service nginx stop
 

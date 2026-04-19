@@ -1,8 +1,8 @@
 package:
   name: buildkitd
-  version: "0.26.3"
+  version: "0.29.0"
   description: "concurrent, cache-efficient, and Dockerfile-agnostic builder toolkit"
-  epoch: 0 # GHSA-jv3w-x3r3-g6rm
+  epoch: 4 # GHSA-hfvc-g4fc-pqhx
   copyright:
     - license: Apache-2.0
   dependencies:
@@ -11,13 +11,16 @@ package:
       - runc
     provides:
       - buildkit=${{package.full-version}}
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
       - libseccomp-dev
       - libseccomp-static
 
@@ -26,14 +29,13 @@ pipeline:
     with:
       repository: https://github.com/moby/buildkit
       tag: v${{package.version}}
-      expected-commit: c70e8e666f8f6ee3c0d83b20c338be5aedeaa97a
+      expected-commit: 8543ce4428265d547cb009e5ad62348284497a88
 
   - uses: go/bump
     with:
       deps: |-
-        github.com/opencontainers/selinux@v1.13.0
-        github.com/cloudflare/circl@v1.6.1
-        golang.org/x/crypto@v0.45.0
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
@@ -41,6 +43,7 @@ pipeline:
       packages: ./cmd/buildkitd
       tags: osusergo,netgo,static_build,seccomp
       output: buildkitd
+      go-package: go-1.25
       ldflags: |
         -X github.com/moby/buildkit/version.Version=${{package.version}}
         -X github.com/moby/buildkit/version.Revision=r${{package.epoch}}
@@ -51,6 +54,7 @@ pipeline:
       modroot: .
       packages: ./cmd/buildctl
       output: buildctl
+      go-package: go-1.25
       ldflags: |
         -X github.com/moby/buildkit/version.Version=${{package.version}}
         -X github.com/moby/buildkit/version.Revision=r${{package.epoch}}
@@ -66,12 +70,14 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/usr/bin
           mv ${{targets.destdir}}/usr/bin/buildctl ${{targets.subpkgdir}}/usr/bin/buildctl
-      - uses: strip
     test:
       pipeline:
-        - runs: |
-            buildctl --version
-            buildctl --help
+        - uses: test/tw/ver-check
+          with:
+            bins: buildctl
+        - uses: test/tw/help-check
+          with:
+            bins: buildctl
 
 update:
   enabled: true
@@ -82,6 +88,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: "start daemon"
       uses: test/daemon-check-output
       with:
@@ -89,8 +96,13 @@ test:
         timeout: 60
         expected_output: |
           running server
-    - runs: |
-        buildctl-daemonless.sh --version
-        buildctl-daemonless.sh --help
-        buildkitd --version
-        buildkitd --help
+    - uses: test/tw/ver-check
+      with:
+        bins: |
+          buildkitd
+          buildctl-daemonless.sh
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          buildkitd
+          buildctl-daemonless.sh

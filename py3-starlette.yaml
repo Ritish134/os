@@ -1,12 +1,18 @@
 package:
   name: py3-starlette
-  version: "0.50.0"
-  epoch: 1
+  version: "1.0.0"
+  epoch: 1 # go/wolfi-rsc/py3-starlette
   description: The little ASGI library that shines
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 2Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   pypi-package: starlette
@@ -36,7 +42,7 @@ pipeline:
     with:
       repository: https://github.com/encode/starlette
       tag: ${{package.version}}
-      expected-commit: 4941b4a04993d087dea66e9287fe9472babee879
+      expected-commit: 0e88e92b592bfa11fd92e331869a8d49ba34b541
 
 subpackages:
   - range: py-versions
@@ -57,6 +63,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,13 +1,16 @@
 package:
   name: php-8.3-pecl-mcrypt
   version: "1.0.9"
-  epoch: 0
+  epoch: 3
   description: "Provides PHP ${{vars.phpMM}} bindings for the unmaintained libmcrypt - PECL"
   copyright:
     - license: PHP-3.01
   dependencies:
     runtime:
       - php-${{vars.phpMM}}
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 var-transforms:
   - from: ${{package.name}}
@@ -31,10 +34,11 @@ environment:
       - php-${{vars.phpMM}}-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://pecl.php.net/get/mcrypt-${{package.version}}.tgz
-      expected-sha512: 21eec7dd286016ef5e853e6004a87a9e5a01f641e848643b2202832e5daad54b2bc24389d724ea01f453c1a8da2109738f3dde173dfcabd5d014c722c4aedd0f
+      repository: https://github.com/php/pecl-encryption-mcrypt
+      tag: ${{package.version}}
+      expected-commit: ee7378051c1776414ee6a459d16942e3f9acdbfc
 
   - name: phpize and configure
     runs: |
@@ -60,5 +64,25 @@ update:
     tag-filter: "1."
 
 test:
+  environment:
+    contents:
+      packages:
+        - php-${{vars.phpMM}}
   pipeline:
+    - name: Verify mcrypt extension is loaded
+      runs: |
+        php -r "if (!extension_loaded('mcrypt')) { die('mcrypt extension is not loaded\n'); } echo 'mcrypt extension loaded OK\n';"
+    - name: Verify mcrypt encryption and decryption
+      runs: |
+        php -r "
+          \$key = 'secret-key-12345';
+          \$iv = mcrypt_create_iv(mcrypt_get_iv_size(MCRYPT_RIJNDAEL_128, MCRYPT_MODE_CBC), MCRYPT_DEV_URANDOM);
+          \$plaintext = 'Hello, mcrypt!';
+          \$encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, \$key, \$plaintext, MCRYPT_MODE_CBC, \$iv);
+          \$decrypted = rtrim(mcrypt_decrypt(MCRYPT_RIJNDAEL_128, \$key, \$encrypted, MCRYPT_MODE_CBC, \$iv));
+          if (\$decrypted !== \$plaintext) {
+            die('mcrypt encrypt/decrypt round-trip failed\n');
+          }
+          echo 'mcrypt encrypt/decrypt round-trip OK\n';
+        "
     - uses: test/tw/ldd-check

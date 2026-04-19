@@ -1,7 +1,7 @@
 package:
   name: postgresql-18
-  version: "18.1"
-  epoch: 0
+  version: "18.3"
+  epoch: 4
   description: A sophisticated object-relational DBMS
   copyright:
     - license: BSD-3-Clause
@@ -12,6 +12,9 @@ package:
       - ${{package.name}}-base=${{package.full-version}}
       - ecpg=${{package.full-version}}
       - tzdata
+  resources:
+    cpu: "15"
+    memory: 15Gi
 
 data:
   - name: py-versions
@@ -24,7 +27,7 @@ data:
 environment:
   environment:
     # Used to fetch docker scripts
-    ALPINE_VERSION: "3.21"
+    ALPINE_VERSION: "3.23"
     # Common configure flags for both main package and plpython builds
     CONFIGURE_FLAGS: >-
       --bindir=/usr/libexec/${{vars.mangled-package-name}} --datadir=/usr/share/${{vars.mangled-package-name}} --docdir=/usr/share/doc/${{vars.mangled-package-name}} --mandir=/usr/share/${{vars.mangled-package-name}}/man --with-openssl --with-libedit-preferred --with-uuid=e2fs --with-libxml --with-libxslt --with-icu --with-lz4 --with-zstd --with-gssapi --with-ldap --with-llvm --with-pam  --enable-thread-safety
@@ -54,7 +57,7 @@ environment:
       - lz4-dev
       - net-tools
       - openldap-dev
-      - openssl-dev
+      - openssl-hardened-dev
       - py3-supported-build-base-dev
       - tzdata
       - util-linux-dev
@@ -82,7 +85,7 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 4b324845ba5d24682b9b3708a769f00d160afbd7
+      expected-commit: 62d6c7d3df6287f1bd83199c1a746e50d31571a0
       repository: https://github.com/postgres/postgres
       tag: REL_${{vars.mangled-package-version}}
 
@@ -119,13 +122,19 @@ subpackages:
         - postgresql-dev=${{package.full-version}}
       runtime:
         - ${{package.name}}
-        - openssl-dev
+        - openssl-hardened-dev
         - ${{package.name}}-client
         - libpq-18
         - libecpg-18-dev
     description: postgresql dev
     test:
+      environment:
+        contents:
+          packages:
+            - pkgconf
       pipeline:
+        - uses: test/tw/devpackage
+        - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
             packages: postgresql-18-dev
@@ -138,6 +147,12 @@ subpackages:
           for binary in ${{vars.client-tools}}; do
             mv ${{targets.destdir}}/usr/libexec/${{vars.mangled-package-name}}/${binary} ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/${binary}
           done
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /usr/libexec/${{vars.mangled-package-name}}/
+            name: 'pg_*'
 
   - name: ${{package.name}}-client
     description: PostgreSQL client
@@ -171,6 +186,15 @@ subpackages:
             name=${path##*/}
             ln -s /usr/libexec/${{vars.mangled-package-name}}/$name ${{targets.contextdir}}/usr/local/pgsql-${{vars.major-version}}/$name
           done
+    test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
 
   - name: ${{package.name}}-contrib
     dependencies:
@@ -336,13 +360,40 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}
-          curl https://raw.githubusercontent.com/docker-library/postgres/master/18/alpine"${ALPINE_VERSION}"/docker-entrypoint.sh -o \
-            ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
-          curl https://raw.githubusercontent.com/docker-library/postgres/master/18/alpine"${ALPINE_VERSION}"/docker-ensure-initdb.sh -o \
-            ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/docker-ensure-initdb.sh
+          curl https://raw.githubusercontent.com/docker-library/postgres/master/18/alpine"${ALPINE_VERSION}"/docker-entrypoint.sh \
+            --fail-with-body \
+            -o ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
+          curl https://raw.githubusercontent.com/docker-library/postgres/master/18/alpine"${ALPINE_VERSION}"/docker-ensure-initdb.sh \
+            --fail-with-body \
+            -o ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/docker-ensure-initdb.sh
           sed -i "s|/docker-entrypoint-initdb.d|/var/lib/postgres/initdb|g" ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/*.sh
           sed -i "s|/usr/local|/usr|g" ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/*.sh
           chmod +x ${{targets.subpkgdir}}/usr/libexec/${{vars.mangled-package-name}}/*.sh
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            dir: /usr/libexec/${{vars.mangled-package-name}}/
+            name: '*.sh'
+        - name: "Verify entrypoint scripts are executable and contain expected content"
+          runs: |
+            set -euo pipefail
+
+            # Verify scripts are executable
+            test -x /usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
+            test -x /usr/libexec/${{vars.mangled-package-name}}/docker-ensure-initdb.sh
+
+            # Verify scripts contain PostgreSQL-specific content
+            grep -F "postgres" /usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
+            grep -F "initdb" /usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
+
+            # Verify the sed replacements were applied (paths should use /usr not /usr/local)
+            grep -F "/var/lib/postgres/initdb" /usr/libexec/${{vars.mangled-package-name}}/docker-entrypoint.sh
+
+            # Verify docker-ensure-initdb.sh references initdb
+            grep -F "initdb" /usr/libexec/${{vars.mangled-package-name}}/docker-ensure-initdb.sh
+
+            echo "PASS: Entrypoint scripts are valid and contain expected content"
 
   - name: ${{package.name}}-oci-entrypoint
     description: Entrypoint for using PostgreSQL in OCI containers
@@ -583,5 +634,5 @@ test:
       runs: |
         psql -t -A -d testdb -c "SHOW jit;" | grep "on"
     - name: "Test toast compression set to lz4"
-      runs: |
+      runs: |-
         psql -t -A -d testdb -c "SET default_toast_compression = 'lz4'; SHOW default_toast_compression;" | grep "^lz4$"

@@ -1,13 +1,19 @@
 package:
   name: traefik-3.6
-  version: "3.6.6"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "3.6.13"
+  epoch: 2 # GHSA-qqx8-2xmm-jrv8
   description: The Cloud Native Application Proxy
   copyright:
     - license: MIT
   dependencies:
     provides:
       - traefik=${{package.full-version}}
+  resources:
+    cpu: "8"
+    memory: 17Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -16,16 +22,23 @@ environment:
       - busybox
       - ca-certificates-bundle
       - git
-      - go
+      - go-1.25
       - nodejs-20
       - yarn-berry
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: c2b21d3719808770b4c0c8212f65732c024adb5e
+      expected-commit: 94764103c4f44d26cb2aafd64ac6c5af7622d7af
       repository: https://github.com/traefik/traefik
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/go-acme/lego/v4@v4.34.0
 
   - working-directory: webui
     runs: |
@@ -47,14 +60,18 @@ update:
   github:
     identifier: traefik/traefik
     strip-prefix: v
-    tag-filter: v3.6.
+    tag-filter-prefix: v3.6.
 
 test:
   pipeline:
-    - runs: |
-        set -o pipefail
-        traefik version | grep ${{package.version}}
-        traefik --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: traefik
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: traefik
     - name: Run and test traefik
       uses: test/daemon-check-output
       with:

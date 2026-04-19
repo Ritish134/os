@@ -1,10 +1,13 @@
 package:
   name: libsdl3
-  version: "3.4.0"
+  version: "3.4.4"
   epoch: 0
   description: Simple DirectMedia Layer is a cross-platform development library designed to provide low level access to audio, keyboard, mouse, joystick, and graphics hardware via OpenGL and Direct3D.
   copyright:
     - license: Zlib
+  resources:
+    cpu: "4"
+    memory: 11Gi
 
 environment:
   contents:
@@ -39,7 +42,7 @@ pipeline:
     with:
       repository: https://github.com/libsdl-org/SDL
       tag: release-${{package.version}}
-      expected-commit: a962f40bbba175e9716557a25d5d7965f134a3d3
+      expected-commit: 5848e584a1b606de26e3dbd1c7e4ecbc34f807a6
 
   - uses: cmake/configure
 
@@ -51,6 +54,8 @@ pipeline:
       rm ${{targets.destdir}}/usr/share/licenses/SDL3/LICENSE.txt
       rm -r ${{targets.destdir}}/usr/share
 
+  - uses: strip
+
 subpackages:
   - name: ${{package.name}}-dev
     dependencies:
@@ -60,6 +65,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
@@ -78,9 +84,25 @@ test:
     contents:
       packages:
         - ${{package.name}}-dev
+        - build-base
         - pkgconf
   pipeline:
-    - runs: |
-        set -euo pipefail
-        pkg-config --modversion sdl3 | grep -q "${{package.version}}"
     - uses: test/tw/ldd-check
+    - name: Test library compilation and linking
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <SDL3/SDL.h>
+        int main(void) {
+            if (!SDL_Init(0)) {
+                SDL_Log("SDL_Init failed: %s", SDL_GetError());
+                return 1;
+            }
+            SDL_Quit();
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags sdl3) test.c -o test $(pkg-config --libs sdl3)
+        ./test

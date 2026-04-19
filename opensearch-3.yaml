@@ -4,8 +4,8 @@
 # same version they are installed into.
 package:
   name: opensearch-3
-  version: "3.4.0"
-  epoch: 0
+  version: "3.6.0"
+  epoch: 1
   description: Open source distributed and RESTful search engine.
   copyright:
     - license: Apache-2.0
@@ -13,9 +13,13 @@ package:
     runtime:
       - bash # some helper scripts use bash
       - busybox # some helper scripts use busybox
-      - openjdk-21-jre
+      - openjdk-25-jre
+  resources:
+    cpu: "24"
+    memory: 96Gi
 
 vars:
+  java-version: "25"
   plugin_version_qualifier: "0"
 
 var-transforms:
@@ -26,6 +30,10 @@ var-transforms:
     match: ^(\d+\.\d+)\.\d+$
     replace: $1.[0-9]*
     to: plugin_version
+  - from: ${{package.version}}
+    match: ^(\d+)\.\d+\.\d+$
+    replace: "$1"
+    to: major-version
 
 environment:
   contents:
@@ -46,12 +54,12 @@ environment:
       - liblapacke
       - openblas
       - openblas-dev
-      - openjdk-21-default-jdk
+      - openjdk-25-default-jdk
       - patch
       - unzip
       - zlib-dev
   environment:
-    JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+    JAVA_HOME: /usr/lib/jvm/java-25-openjdk
     LANG: "en_US.UTF-8"
 
 data:
@@ -69,7 +77,6 @@ data:
       discovery-azure-classic: ""
       discovery-ec2: ""
       discovery-gce: ""
-      identity-shiro: ""
       ingest-attachment: ""
       mapper-annotated-text: ""
       mapper-murmur3: ""
@@ -107,15 +114,15 @@ pipeline:
     with:
       repository: https://github.com/opensearch-project/OpenSearch
       tag: ${{package.version}}
-      expected-commit: 00336141f90b2456d7aa35e9052fd6baf7147423
+      expected-commit: 4ca747d8d47f80162db323019357447126732e35
 
   - runs: |
-      # Bump netty to 4.2.8-Final: GHSA-84h7-rjj3-6jx4
-      sed -i 's/^\(netty.*\)4.2.7/\14.2.8/' gradle/libs.versions.toml
+      # Bump log4j to 2.25.4: CVE-2026-34480
+      sed -i 's/^log4j                   = "2\.25\.3"/log4j                   = "2.25.4"/' gradle/libs.versions.toml
 
   - runs: |
       echo "org.gradle.daemon=false" >> gradle.properties
-      gradle localDistro --parallel -Dbuild.snapshot="false" -Dbuild.version_qualifier=""
+      ./gradlew --no-daemon localDistro --parallel -Dbuild.snapshot=false -Dbuild.version_qualifier=
       mkdir -p ${{targets.destdir}}/usr/share/opensearch/logs
 
       install -dm777 ${{targets.destdir}}/usr/share/opensearch/
@@ -153,7 +160,7 @@ pipeline:
 
   - runs: |
       cd plugins
-      gradle assemble -Dbuild.snapshot="false" -Dbuild.version_qualifier="" --stacktrace
+      ../gradlew --no-daemon assemble -Dbuild.snapshot=false -Dbuild.version_qualifier= --stacktrace
 
       # useful for finding generated zip file we use to extract into the final apk
       find . -name "*.zip"
@@ -172,6 +179,12 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.contextdir}}/usr/share/opensearch/plugins/opensearch-${{range.key}}
           unzip "./plugins/${{range.key}}/build/distributions/${{range.key}}-${{package.version}}.zip" -d "${{targets.contextdir}}/usr/share/opensearch/plugins/opensearch-${{range.key}}"
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /usr/share/opensearch/plugins/opensearch-${{range.key}}
 
   - range: external-plugins
     name: ${{package.name}}-${{range.key}}
@@ -267,11 +280,22 @@ subpackages:
               ./gradlew :buildJniLib -Pknn_libs=opensearchknn_faiss -Davx512_spr.enabled=true -Dbuild.lib.commit_patches=false -Dbuild.lib.apply_patches=false -Dnproc.count=4 --stacktrace
             fi
           else
-            # For other plugins, single gradle run
+            # For other plugins, single gradle run.
+            # -Pcrypto.standard=any-supported overrides the security plugin's
+            # gradle.properties (added in security 3.6.0.0) which hardcodes
+            # crypto.standard=FIPS-140-3. Without the override, the plugin's
+            # build.gradle scopes bc-fips/bcpkix-fips/bcutil-fips as compileOnly,
+            # which excludes them from the plugin zip produced by bundlePlugin
+            # (runtimeClasspath - compileOnly). The compiled plugin classes still
+            # reference BouncyCastleFipsProvider, so the non-FIPS image crashes at
+            # load time with NoClassDefFoundError. This image is the non-FIPS
+            # variant, so force the non-FIPS dependency scope and let the jars
+            # ship in the zip as they did for 3.5.0.
             ./gradlew clean assemble \
               -Dbuild.snapshot="false" \
               -Dbuild.version_qualifier="" \
               -Dopensearch.version="${{package.version}}" \
+              -Pcrypto.standard=any-supported \
               -x check \
               -x integTest \
               -x javadoc \
@@ -284,7 +308,11 @@ subpackages:
 
           # Extract the value of rootProject.name, this is because the key is not always the same as the plugin name
           # note: not all plugins have a settings.gradle file
-          plugin_name=$(grep "^rootProject.name" settings.gradle 2>/dev/null | awk -F" = " '{print $2}' | tr -d "'" | tr -d '"')
+          plugin_name=""
+          if [ -f settings.gradle ]; then
+            # rootProject.name = 'foo' -> foo. remove any quotes around the name by splicing ['"] into this single quoted awk command
+            plugin_name=$(awk -F' = ' '/^rootProject.name/{ gsub(/['"'"'"]/, "", $2); print $2 }' settings.gradle)
+          fi
 
           # Check if plugin_name is empty and assign default if it is
           if [ -z "$plugin_name" ]; then
@@ -380,6 +408,72 @@ subpackages:
               echo "All k-nn JNI native libraries verified"
             fi
 
+  - name: ${{package.name}}-iamguarded-compat
+    description: "Compatibility package for iamguarded variant of OpenSearch"
+    dependencies:
+      provides:
+        - opensearch-iamguarded-compat=${{package.full-version}}
+      runtime:
+        - bash
+        - curl
+        - gzip
+        - coreutils
+        - glibc-locale-en
+        - posix-libc-utils
+        - yq
+    pipeline:
+      - uses: iamguarded/build-compat
+        with:
+          package: opensearch
+          version: ${{vars.major-version}}
+      - runs: |
+          mkdir -p /opt/iamguarded/opensearch
+          chmod -R g+rwX /opt/iamguarded
+          mkdir -p /opt/iamguarded/opensearch/config
+          mkdir -p /opt/iamguarded/opensearch/config.default
+          mkdir -p /opt/iamguarded/opensearch/logs
+          mkdir -p /opt/iamguarded/opensearch/data
+          mkdir -p /opt/iamguarded/scripts/opensearch
+          # Create symlink for Java (required by iamguarded scripts)
+          ln -sf /usr/lib/jvm/java-${{vars.java-version}}-openjdk /opt/iamguarded/java
+          # Create symlinks to the main opensearch installation
+          ln -sf /usr/share/opensearch/bin /opt/iamguarded/opensearch/bin
+          ln -sf /usr/share/opensearch/lib /opt/iamguarded/opensearch/lib
+          ln -sf /usr/share/opensearch/modules /opt/iamguarded/opensearch/modules
+          ln -sf /usr/share/opensearch/plugins /opt/iamguarded/opensearch/plugins
+          ln -sf /usr/share/opensearch/agent /opt/iamguarded/opensearch/agent
+          # Copy config to both config and config.default (entrypoint copies config.default to config at startup)
+          cp -r "${{targets.destdir}}/usr/share/opensearch/config/"* /opt/iamguarded/opensearch/config/
+          cp -r "${{targets.destdir}}/usr/share/opensearch/config/"* /opt/iamguarded/opensearch/config.default/
+          ln -sf /opt/iamguarded/scripts/opensearch/entrypoint.sh "${{targets.contextdir}}/entrypoint.sh"
+          ln -sf /opt/iamguarded/scripts/opensearch/run.sh "${{targets.contextdir}}/run.sh"
+      - uses: iamguarded/finalize-compat
+        with:
+          package: opensearch
+          version: ${{vars.major-version}}
+    test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
+      pipeline:
+        - uses: iamguarded/test-compat
+          with:
+            package: opensearch
+            version: ${{vars.major-version}}
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
+        - name: "Test iamguarded directory structure"
+          runs: |
+            stat /opt/iamguarded/opensearch/bin
+            stat /opt/iamguarded/opensearch/lib
+            stat /opt/iamguarded/opensearch/modules
+            stat /opt/iamguarded/opensearch/plugins
+            stat /opt/iamguarded/opensearch/agent
+            test "$(readlink /entrypoint.sh)" = "/opt/iamguarded/scripts/opensearch/entrypoint.sh"
+            test "$(readlink /run.sh)" = "/opt/iamguarded/scripts/opensearch/run.sh"
+
 update:
   enabled: true
   ignore-regex-patterns:
@@ -393,7 +487,7 @@ test:
   environment:
     contents:
       packages:
-        - openjdk-21-default-jvm
+        - openjdk-25-default-jvm
         - bash
   pipeline:
     - runs: |

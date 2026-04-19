@@ -1,10 +1,13 @@
 package:
   name: libxrandr
-  version: 1.5.4
-  epoch: 4
+  version: "1.5.5"
+  epoch: 3
   description: X11 RandR extension library
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -27,7 +30,7 @@ pipeline:
     with:
       repository: https://gitlab.freedesktop.org/xorg/lib/libxrandr
       tag: libXrandr-${{package.version}}
-      expected-commit: 512bf0b15b5597c721ff8c61083616ca9040fa72
+      expected-commit: 540c3ceef2be3e513b18002a858c7a9591dd749a
 
   - uses: autoconf/configure
 
@@ -50,6 +53,7 @@ subpackages:
     description: libxrandr dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -67,5 +71,28 @@ update:
     identifier: 1788
 
 test:
+  environment:
+    contents:
+      packages:
+        - libxrandr-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <X11/extensions/Xrandr.h>
+        #include <stdio.h>
+        int main() {
+            /* Verify XRandR API symbols are available */
+            printf("XRRQueryExtension: %p\n", (void *)XRRQueryExtension);
+            printf("XRRGetScreenInfo: %p\n", (void *)XRRGetScreenInfo);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags xrandr) test.c -o test $(pkg-config --libs xrandr)
+        ./test

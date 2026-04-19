@@ -1,6 +1,6 @@
 package:
   name: py3-virtualenv
-  version: "20.35.4"
+  version: "21.2.4"
   epoch: 0
   description: Virtual Python Environment builder
   copyright:
@@ -34,7 +34,7 @@ pipeline:
     with:
       repository: https://github.com/pypa/virtualenv
       tag: ${{package.version}}
-      expected-commit: 03815342726b1a8b33b55b5057bfd46b1d6b74c1
+      expected-commit: 15063c10b3afae1d3fa3234e99f956434051f7b5
 
 subpackages:
   - range: py-versions
@@ -47,6 +47,7 @@ subpackages:
         - py${{range.key}}-filelock
         - py${{range.key}}-importlib-metadata
         - py${{range.key}}-platformdirs
+        - py${{range.key}}-python-discovery
     pipeline:
       - uses: py/pip-build-install
         with:

@@ -1,9 +1,12 @@
 package:
   name: terraform
   version: 1.5.7
-  epoch: 36 # CVE-2025-61729
+  epoch: 46 # CVE-2026-32280
   copyright:
     - license: MPL-2.0
+  resources:
+    cpu: "4"
+    memory: 10Gi
 
 pipeline:
   - uses: git-checkout
@@ -15,7 +18,6 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
-        google.golang.org/grpc@v1.56.3
         google.golang.org/protobuf@v1.33.0
         github.com/hashicorp/go-retryablehttp@v0.7.7
         github.com/hashicorp/go-getter@v1.7.5
@@ -25,11 +27,14 @@ pipeline:
         golang.org/x/net@v0.38.0
         github.com/ulikunitz/xz@v0.5.14
         golang.org/x/crypto@v0.45.0
+        google.golang.org/api@v0.155.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: .
       output: terraform
+      go-package: go-1.25
 
 subpackages:
   - name: terraform-compat
@@ -37,7 +42,15 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}"/usr/local/bin
-          ln -s /usr/bin/terraform "${{targets.subpkgdir}}"/usr/local/bin
+          ln -sf ../../bin/terraform "${{targets.subpkgdir}}"/usr/local/bin/terraform
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
 
   - name: terraform-local-provider-config
     description: Configure Terraform to use local providers
@@ -55,6 +68,11 @@ subpackages:
             }
           }
           EOF
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
+          with:
+            dir: /terraform/
 
 update:
   enabled: false
@@ -62,6 +80,7 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Terraform Initialization
       runs: |
         echo "provider \"local\" {}" > example.tf
@@ -74,3 +93,8 @@ test:
     - name: Terraform Apply Execution
       runs: |
         terraform apply -input=false tfplan || exit 1
+
+environment:
+  contents:
+    packages:
+      - go-1.25

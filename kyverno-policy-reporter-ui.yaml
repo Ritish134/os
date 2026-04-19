@@ -1,19 +1,19 @@
 package:
   name: kyverno-policy-reporter-ui
   version: "2.5.1"
-  epoch: 0 # CVE-2025-58187
+  epoch: 9 # CVE-2026-32280
   description: Policy Reporter UI
   copyright:
     - license: Apache-2.0
-  checks:
-    disabled:
-      # KO_DATA is inside /var/run/ko so this checks needs to be disabled.
-      - tempdir
+  dependencies:
+    runtime:
+      - kodata-compat
 
 environment:
   contents:
     packages:
       - bun
+      - go-1.25
       - node-gyp
 
 pipeline:
@@ -27,8 +27,9 @@ pipeline:
     runs: |
       bun install
       bun run generate
-      mkdir -p ${{targets.contextdir}}/var/run/ko/templates
-      cp -R ./dist ${{targets.contextdir}}/var/run/ko/ui
+      # Consumers expect /var/run/ko; the kodata-compat package provides a symlink.
+      mkdir -p ${{targets.contextdir}}/usr/share/ko/templates
+      cp -R ./dist ${{targets.contextdir}}/usr/share/ko/ui
 
   - uses: go/build
     with:
@@ -38,7 +39,7 @@ pipeline:
 
   - name: copy more frontend requirements
     runs: |
-      cp -R backend/templates ${{targets.contextdir}}/var/run/ko/
+      cp -R backend/templates ${{targets.contextdir}}/usr/share/ko/
 
 subpackages:
   - name: kyverno-policy-reporter-ui-compat
@@ -48,13 +49,15 @@ subpackages:
           # Symlink the binary from usr/bin to /ko-app/
           mkdir -p ${{targets.contextdir}}/ko-app
           mkdir -p ${{targets.contextdir}}/app
-          ln -sf /usr/bin/policyreporter-ui ${{targets.subpkgdir}}/app/policyreporter-ui
-          ln -sf /usr/bin/policyreporter-ui ${{targets.contextdir}}/ko-app/policyreporter-ui
+          ln -sf ../usr/bin/policyreporter-ui ${{targets.subpkgdir}}/app/policyreporter-ui
+          ln -sf ../usr/bin/policyreporter-ui ${{targets.contextdir}}/ko-app/policyreporter-ui
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: |
-            test "$(readlink -fv /ko-app/policyreporter-ui)" = "/usr/bin/policyreporter-ui"
-            test "$(readlink -fv /app/policyreporter-ui)" = "/usr/bin/policyreporter-ui"
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -76,8 +79,11 @@ test:
     environment:
       KO_DATA_PATH: "/var/run/ko"
   pipeline:
-    - runs: |
-        policyreporter-ui --help
+    - uses: test/tw/ldd-check
+    - uses: test/systemd-tmpfiles
+    - uses: test/tw/help-check
+      with:
+        bins: policyreporter-ui
     - name: Run and test ${{package.name}}
       uses: test/daemon-check-output
       with:
@@ -90,7 +96,6 @@ test:
           /var/run/ko/ui
           Server starts
         post: |
-          #!/bin/sh -e
-          set -o pipefail
-          curl -s localhost:8080 | grep -i "Policy Reporter UI"
-          curl -s localhost:8080 | grep -i "html"
+          set -euo pipefail
+          curl -s localhost:8080 | grep -F "Policy Reporter UI"
+          curl -s localhost:8080 | grep -F "html"

@@ -1,10 +1,13 @@
 package:
   name: libslirp
   version: "4.9.1"
-  epoch: 1
+  epoch: 4 # go/wolfi-rsc/libslirp
   description: A general purpose TCP-IP emulator
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -16,10 +19,11 @@ environment:
       - meson
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v${{package.version}}/libslirp-v${{package.version}}.tar.gz
-      expected-sha512: cdb66f6280a9982de3c32269aee352bdf225db918590255abaed9bcd0aee4e996d2d8c2c3f62473f57485603ec29fd35723b0649d3ec3c41cc28b22ce913f63b
+      repository: https://gitlab.freedesktop.org/slirp/libslirp
+      tag: v${{package.version}}
+      expected-commit: 9c744e1e52aa0d9646ed91d789d588696292c21e
 
   - uses: meson/configure
 
@@ -40,6 +44,7 @@ subpackages:
     description: libslirp dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -49,5 +54,31 @@ update:
     identifier: 96796
 
 test:
+  environment:
+    contents:
+      packages:
+        - libslirp-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and usage
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <libslirp.h>
+        #include <stdio.h>
+        int main() {
+            const char *version = slirp_version_string();
+            if (version == NULL) {
+                fprintf(stderr, "FAIL: slirp_version_string() returned NULL\n");
+                return 1;
+            }
+            printf("libslirp version: %s\n", version);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags slirp) test.c -o test $(pkg-config --libs slirp)
+        ./test

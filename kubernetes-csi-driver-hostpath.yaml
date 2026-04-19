@@ -1,10 +1,16 @@
 package:
   name: kubernetes-csi-driver-hostpath
-  version: "1.17.0"
-  epoch: 8 # GHSA-r6j8-c6r2-37rr
+  version: "1.17.1"
+  epoch: 10 # go/wolfi-rsc/kubernetes-csi-driver-hostpath
   description: A sample (non-production) CSI Driver that creates a local directory as a volume on a single node
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -12,24 +18,26 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/kubernetes-csi/csi-driver-host-path.git
       tag: v${{package.version}}
-      expected-commit: 8b88d04ec388312df1b910bf1cb48926c63c2660
+      expected-commit: c7383ef90bae7803195ede035a7d85ab3c7cffc9
 
   - uses: go/bump
     with:
       deps: |-
         k8s.io/kubernetes@v1.33.6
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: ./cmd/hostpathplugin
       output: hostpathplugin
+      go-package: go-1.25
       ldflags: -X main.version=${{package.version}}
       vendor: "true"
 
@@ -46,17 +54,26 @@ test:
         - curl
         - kubernetes-csi-livenessprobe
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: hostpathplugin
+    - uses: test/tw/help-check
+      with:
+        bins: hostpathplugin
     - uses: test/kwok/cluster
-    - runs: |
-        hostpathplugin --version
-        hostpathplugin --help
     - runs: |
         mkdir -p /csi
 
-        hostpathplugin --v=5 --endpoint="unix:///csi/csi.sock" --nodeid="node-000000" > /dev/null 2>&1 &
+        hostpathplugin --v=5 --endpoint="unix:///csi/csi.sock" --nodeid="node-000000" &
+        HOSTPATH_PID=$!
         sleep 5
 
-        livenessprobe --csi-address /csi/csi.sock --health-port 9898 > /dev/null 2>&1 &
+        livenessprobe --csi-address /csi/csi.sock --health-port 9898 &
+        LIVENESS_PID=$!
         sleep 5
 
         curl -Lk localhost:9898/healthz
+
+        kill "$LIVENESS_PID" "$HOSTPATH_PID"
+        wait "$LIVENESS_PID" "$HOSTPATH_PID" || true

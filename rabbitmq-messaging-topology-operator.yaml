@@ -1,7 +1,7 @@
 package:
   name: rabbitmq-messaging-topology-operator
-  version: "1.18.2"
-  epoch: 0 # CVE-2025-61729
+  version: "1.19.1"
+  epoch: 0 # CVE-2026-32280
   description: Open source RabbitMQ cluster operator. Kubernetes operator to deploy and manage RabbitMQ clusters.
   copyright:
     - license: MPL-2.0
@@ -9,8 +9,8 @@ package:
     runtime:
       - tzdata
   resources:
-    cpu: 16
-    memory: 32Gi
+    cpu: "2"
+    memory: 4Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -21,14 +21,15 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: e8d3603653bdfb98e7fa3f2f9165c1494d5d6d22
+      expected-commit: f5ea95487baef8269d81231370e247f57b5ed777
       repository: https://github.com/rabbitmq/messaging-topology-operator
       tag: v${{package.version}}
 
   - uses: go/build
     with:
+      go-package: go-1.26
       output: manager
-      packages: .
+      packages: ./cmd
       tags: timetzdata
 
 subpackages:
@@ -37,8 +38,16 @@ subpackages:
       - runs: |
           # link /usr/bin/manager to /manager due to hardcoded command
           # See https://github.com/rabbitmq/messaging-topology-operator/blob/main/config/manager/manager.yaml#L24-L25
-          mkdir -p ${{targets.subpkgdir}}/
-          ln -sf /usr/bin/manager ${{targets.subpkgdir}}/manager
+          mkdir -p "${{targets.subpkgdir}}"
+          ln -sf ./usr/bin/manager "${{targets.subpkgdir}}/manager"
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
 
   - name: ${{package.name}}-iamguarded-compat
     description: "compat package for iamguarded"
@@ -48,8 +57,8 @@ subpackages:
           package: ${{package.name}}
           version: ${{vars.major-version}}
       - runs: |
-          mkdir -p /opt/iamguarded/rmq-messaging-topology-operator/bin
-          ln -sf /usr/bin/manager /opt/iamguarded/rmq-messaging-topology-operator/bin/manager
+          mkdir -p "${{targets.subpkgdir}}/opt/iamguarded/rmq-messaging-topology-operator/bin"
+          ln -sf ../../../../usr/bin/manager "${{targets.subpkgdir}}/opt/iamguarded/rmq-messaging-topology-operator/bin/manager"
       - uses: iamguarded/finalize-compat
         with:
           package: ${{package.name}}
@@ -68,7 +77,7 @@ subpackages:
             run-script --version
             run-script --help
         - runs: |
-            test "$(readlink /opt/iamguarded/rmq-messaging-topology-operator/bin/manager)" = "/usr/bin/manager"
+            test "$(readlink /opt/iamguarded/rmq-messaging-topology-operator/bin/manager)" = "../../../../usr/bin/manager"
             /opt/iamguarded/rmq-messaging-topology-operator/bin/manager --help
     dependencies:
       runtime:
@@ -89,6 +98,7 @@ test:
     environment:
       OPERATOR_NAMESPACE: default
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         manager --help
     - uses: test/kwok/cluster
@@ -98,6 +108,7 @@ test:
       uses: test/daemon-check-output
       with:
         setup: |
+          kubectl create clusterrolebinding test-admin --clusterrole=cluster-admin --serviceaccount=default:default
           mkdir -p /tmp/k8s-webhook-server/serving-certs
           openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
             -keyout /tmp/k8s-webhook-server/serving-certs/tls.key \
@@ -105,19 +116,40 @@ test:
             -subj "/CN=rabbitmq-messaging-topology-operator-webhook-service.default.svc" \
             -addext "subjectAltName=DNS:rabbitmq-messaging-topology-operator-webhook-service.default.svc"
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_bindings.yaml
-          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_consumers.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_exchanges.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_federations.yaml
-          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_policies.yaml
+          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_operatorpolicies.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_permissions.yaml
+          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_policies.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_queues.yaml
+          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_schemareplications.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_shovels.yaml
+          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_superstreams.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_topicpermissions.yaml
           kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_users.yaml
-        start: manager --metrics-bind-address ":8080"
+          kubectl apply -f https://raw.githubusercontent.com/rabbitmq/messaging-topology-operator/refs/tags/v${{package.version}}/config/crd/bases/rabbitmq.com_vhosts.yaml
+          kubectl wait --for=condition=Established crd/bindings.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/exchanges.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/federations.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/operatorpolicies.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/permissions.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/policies.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/queues.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/schemareplications.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/shovels.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/superstreams.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/topicpermissions.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/users.rabbitmq.com --timeout=60s
+          kubectl wait --for=condition=Established crd/vhosts.rabbitmq.com --timeout=60s
+        start: /usr/bin/manager --metrics-bind-address ":8080" --metrics-secure=false
         timeout: 30
         expected_output: |
           Starting Controller
           Starting workers
         post: |
           curl --silent --fail localhost:8080/metrics
+
+environment:
+  contents:
+    packages:
+      - go-1.26

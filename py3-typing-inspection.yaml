@@ -1,12 +1,15 @@
 package:
   name: py3-typing-inspection
   version: "0.4.2"
-  epoch: 0
+  epoch: 3 # go/wolfi-rsc/py3-typing-inspection
   description: Runtime typing introspection tools
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 5Gi
 
 vars:
   pypi-package: typing-inspection
@@ -44,6 +47,8 @@ subpackages:
       provides:
         - ${{package.name}}
         - py3-${{vars.pypi-package}}
+      runtime:
+        - py${{range.key}}-typing-extensions
     pipeline:
       - uses: py/pip-build-install
         with:
@@ -51,6 +56,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,17 +1,20 @@
 package:
   name: openfga
-  version: "1.11.2"
-  epoch: 0 # GHSA-2464-8j7c-4cjm
+  version: "1.14.2"
+  epoch: 0 # GHSA-hfvc-g4fc-pqhx
   description: A high performance and flexible authorization/permission engine built for developers and inspired by Google Zanzibar
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 8Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/openfga/openfga
       tag: v${{package.version}}
-      expected-commit: 0ad13d78133fcb1045f0b9f5fee11574a0d63bb2
+      expected-commit: c8a0e7b553ec322edfaa88948d57ba73bcad8883
 
   - uses: go/build
     with:
@@ -28,23 +31,27 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}
-          ln -sf /usr/bin/openfga ${{targets.subpkgdir}}/openfga
+          ln -sf usr/bin/openfga ${{targets.subpkgdir}}/openfga
     test:
+      environment:
+        contents:
+          packages:
+            - ${{package.name}}
       pipeline:
-        - runs: stat /openfga
+        - uses: test/tw/symlink-check
 
   - name: ${{package.name}}-healthcheck-compat
     pipeline:
       - runs: |
           # openfga image has a unique path to its grpc-health-probe binary
           mkdir -p "${{targets.subpkgdir}}"/usr/local/bin
-          ln -sf /usr/bin/grpc-health-probe ${{targets.subpkgdir}}/usr/local/bin/grpc_health_probe
+          ln -sf ../../bin/grpc-health-probe ${{targets.subpkgdir}}/usr/local/bin/grpc_health_probe
     dependencies:
       runtime:
         - grpc-health-probe
     test:
       pipeline:
-        - runs: stat /usr/local/bin/grpc_health_probe
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -66,9 +73,11 @@ test:
     environment:
       STORES_URL: localhost:8080/stores
   pipeline:
-    - name: Test build with right version
-      runs: |
-        openfga version 2>&1 >/dev/null | grep "${{package.version}}"
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: openfga
+        version: ${{package.version}}
     - name: Test server startup and hitting some endpoints
       uses: test/daemon-check-output
       with:
@@ -77,20 +86,20 @@ test:
           starting openfga service...
           starting prometheus metrics server
           starting gRPC server
-          starting openfga playground
           starting HTTP server
         post: |
+          set -euo pipefail
           store_id=$(curl -X POST ${STORES_URL} \
             --fail-with-body \
             --header "Content-Type: application/json" \
             --data-raw "{\"name\":\"chainguard-test\"}" | jq -r .id)
-          curl -X GET ${STORES_URL}/${store_id} | grep chainguard-test
+          curl -X GET ${STORES_URL}/${store_id} | grep -F chainguard-test
 
           auth_model_id=$(curl -X POST ${STORES_URL}/${store_id}/authorization-models \
             --fail-with-body \
             --header "Content-Type: application/json" \
             --data @test_auth_model.json | jq -r .authorization_model_id)
-          curl -X GET ${STORES_URL}/${store_id}/authorization-models/${auth_model_id} | grep ${auth_model_id} | grep type_definitions
+          curl -X GET ${STORES_URL}/${store_id}/authorization-models/${auth_model_id} | grep -F "${auth_model_id}" | grep -F type_definitions
     - name: Test profiler and gRPC endpoints
       uses: test/daemon-check-output
       with:
@@ -102,7 +111,13 @@ test:
           starting gRPC server
           starting HTTP server
         post: |
+          set -euo pipefail
           go tool pprof -proto -seconds 10 http://localhost:3001/debug/pprof/profile
           grpcurl -plaintext localhost:8081 list
           grpcurl -plaintext localhost:8081 describe grpc.health.v1.Health
-          grpc-health-probe -addr=localhost:8081 2>&1 | grep SERVING
+          grpc-health-probe -addr=localhost:8081 2>&1 | grep -F SERVING
+
+environment:
+  contents:
+    packages:
+      - go-1.25

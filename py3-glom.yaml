@@ -1,12 +1,15 @@
 package:
   name: py3-glom
   version: "25.12.0"
-  epoch: 0
+  epoch: 5 # go/wolfi-rsc/py3-glom
   description: Python's nested data operator (and CLI), for all your declarative restructuring needs. Got data? Glom it!
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "7"
+    memory: 8Gi
 
 vars:
   pypi-package: glom
@@ -28,10 +31,11 @@ environment:
       - py3-supported-importlib-metadata
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://files.pythonhosted.org/packages/source/g/glom/glom-${{package.version}}.tar.gz
-      expected-sha256: 1ae7da88be3693df40ad27bdf57a765a55c075c86c971bcddd67927403eb0069
+      repository: https://github.com/mahmoud/glom
+      tag: v${{package.version}}
+      expected-commit: 811eadeec404bd99ee5a43ca551e8fb220b999f3
 
 subpackages:
   - range: py-versions
@@ -54,6 +58,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -75,21 +80,10 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/
           mv ./cleanup/${{range.key}}/bin ${{targets.contextdir}}/usr/
     test:
-      environment:
-        contents:
-          packages:
-            - apk-tools
       pipeline:
-        - runs: |
-            apk info -L py${{range.key}}-${{vars.pypi-package}}-bin > "pkg.list"
-            echo "Please write a test for these:"
-            grep usr/bin/ pkg.list > bins.list
-            sed 's,^,> ,' bins.list
-
-            while read line; do
-              echo "== $line =="
-              /"$line" --help && echo exited 0 || echo "exited $?"
-            done < bins.list
+        - uses: test/tw/help-check
+          with:
+            bins: ${{vars.pypi-package}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -112,5 +106,6 @@ test:
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 120576
+  github:
+    identifier: mahmoud/glom
+    use-tag: true

@@ -1,7 +1,7 @@
 package:
   name: neuvector-manager
-  version: "5.4.8"
-  epoch: 0
+  version: "5.5.0"
+  epoch: 3
   description: NeuVector Security Center Admin Console.
   copyright:
     - license: Apache-2.0
@@ -13,6 +13,12 @@ package:
       - neuvector-manager-cli
       - openjdk-17-default-jvm
       - procps
+  resources:
+    cpu: "4"
+    memory: 15Gi
+
+vars:
+  py-version: "3.13"
 
 environment:
   environment:
@@ -24,8 +30,8 @@ environment:
       - nodejs-22
       - npm
       - openjdk-17-default-jdk
-      - py3-pip
-      - python3
+      - py${{vars.py-version}}-pip
+      - python-${{vars.py-version}}
       - sbt
       - wget
       - zip
@@ -33,7 +39,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 6e6d496cf51b4c2d440a39ecfabd8107eaa4ed0b
+      expected-commit: 540422e67e93e4a02f1b8e1225405e336cbbb979
       repository: https://github.com/neuvector/manager
       tag: v${{package.version}}
 
@@ -44,6 +50,9 @@ pipeline:
       patches: disable_version_mismatch_notif.patch
 
   - runs: |
+      # Set version string in application.conf
+      sed -i 's#interim.*xxxx#${{package.version}}#g' common/src/main/resources/application.conf
+
       # Build UI
       npm install --legacy-peer-deps --prefix admin/webapp
       npm run build --prefix admin/webapp
@@ -64,11 +73,11 @@ subpackages:
     description: NeuVector Manager CLI
     dependencies:
       runtime:
-        - py3-click
-        - py3-requests
-        - py3-six
-        - py3-urllib3
-        - python3
+        - py${{vars.py-version}}-click
+        - py${{vars.py-version}}-requests
+        - py${{vars.py-version}}-six
+        - py${{vars.py-version}}-urllib3
+        - python-${{vars.py-version}}
         - supervisor
     pipeline:
       - runs: |
@@ -96,20 +105,34 @@ subpackages:
       environment:
         contents:
           packages:
-            - py3-click
-            - py3-requests
-            - py3-six
-            - py3-urllib3
-            - python3
+            - py${{vars.py-version}}-click
+            - py${{vars.py-version}}-requests
+            - py${{vars.py-version}}-six
+            - py${{vars.py-version}}-urllib3
+            - python-${{vars.py-version}}
             - supervisor
       pipeline:
-        - runs: |
-            cli -h
+        - uses: test/tw/help-check
+          with:
+            bins: cli
 
 test:
+  environment:
+    contents:
+      packages:
+        - openjdk-17-default-jvm
+        - unzip
   pipeline:
-    - runs: |
-        java -jar /usr/local/bin/admin-assembly-1.0.jar & sleep 2; kill $!
+    - name: Verify application.conf version
+      runs: |
+        set -euo pipefail
+        unzip -p /usr/local/bin/admin-assembly-1.0.jar application.conf | grep -Fi "manager.version=${{package.version}}"
+    - name: Verify manager starts
+      uses: test/daemon-check-output
+      with:
+        start: java -jar /usr/local/bin/admin-assembly-1.0.jar
+        expected_output: "Server is listening on"
+        timeout: "60"
 
 update:
   enabled: true

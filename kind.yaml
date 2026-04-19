@@ -1,10 +1,13 @@
 package:
   name: kind
   version: "0.31.0"
-  epoch: 0 # CVE-2025-61729
+  epoch: 8 # CVE-2026-32280
   description: Kubernetes IN Docker - local clusters for testing Kubernetes
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -12,7 +15,7 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
@@ -26,8 +29,7 @@ pipeline:
       packages: ./cmd/kind
       ldflags: -X sigs.k8s.io/kind/pkg/version.Version=${{package.version}}
       output: ./kind
-
-  - uses: strip
+      go-package: go-1.25
 
 update:
   enabled: true
@@ -37,6 +39,15 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: kind
+    - uses: test/tw/ver-check
+      with:
+        bins: kind
+        version: ${{package.version}}
     - runs: |
-        kind --version
-        kind --help
+        set -euo pipefail
+        kind completion bash | grep -F "kind"
+        kind completion zsh | grep -F "kind"

@@ -1,12 +1,15 @@
 package:
   name: py3-azure-identity
-  version: "1.25.1"
-  epoch: 0
+  version: "1.25.3"
+  epoch: 0 # go/wolfi-rsc/py3-azure-identity
   description: Microsoft Azure Identity Library for Python
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 7Gi
 
 vars:
   pypi-package: azure-identity
@@ -28,7 +31,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: dbf147506014177ceb85ca4cf5e90eef5a5d4660
+      expected-commit: a989ea467731265fdf097b622ba254703187746b
       repository: https://github.com/Azure/azure-sdk-for-python
       tag: azure-identity_${{package.version}}
 
@@ -58,6 +61,7 @@ subpackages:
           packages:
             - openssl-provider-legacy
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

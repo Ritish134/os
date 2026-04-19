@@ -1,10 +1,16 @@
 package:
   name: protobuf
-  version: "33.2" # On update, please check if -fdelete-null-pointer-checks is still required
-  epoch: 0
+  version: "34.1" # On update, please check if -fdelete-null-pointer-checks is still required
+  epoch: 1 # go/wolfi-rsc/protobuf
   description: Library for extensible, efficient structure packing
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "20"
+    memory: 16Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -35,7 +41,7 @@ pipeline:
     with:
       repository: https://github.com/protocolbuffers/protobuf
       tag: v${{package.version}}
-      expected-commit: 7ccf2060af4cd13c44a8659d0999be6c7a98fcc1
+      expected-commit: 4b0c3aacf0657fbf38253b38918d3358dd4319ec
       cherry-picks: |
         main/ced605d0e6a7ad20985375b596b2ca6720e07737: utf8_range: add version marker to library
 
@@ -70,9 +76,38 @@ subpackages:
         - protoc=${{package.full-version}}
         - zlib-dev
     test:
+      environment:
+        contents:
+          packages:
+            - build-base
+            - pkgconf
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
+        - name: Test C++ compile and link with protobuf
+          runs: |
+            set -euo pipefail
+
+            tee test.cpp <<'EOF'
+            #include <google/protobuf/descriptor.h>
+            #include <google/protobuf/message.h>
+            #include <iostream>
+
+            int main() {
+                const google::protobuf::DescriptorPool* pool =
+                    google::protobuf::DescriptorPool::generated_pool();
+                if (pool == nullptr) {
+                    std::cerr << "FAIL: DescriptorPool is null" << std::endl;
+                    return 1;
+                }
+                std::cout << "protobuf dev compile-and-link test passed" << std::endl;
+                return 0;
+            }
+            EOF
+
+            g++ $(pkg-config --cflags protobuf) test.cpp -o test $(pkg-config --libs protobuf)
+            ./test
 
   - name: protoc
     description: Protocol buffer compiler binary and library
@@ -138,7 +173,30 @@ test:
     contents:
       packages:
         - ${{package.name}}-dev
+        - build-base
+        - pkgconf
   pipeline:
-    - runs: |
-        protoc --help
     - uses: test/tw/ldd-check
+    - name: Test protobuf library compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.cpp <<'EOF'
+        #include <google/protobuf/message.h>
+        #include <google/protobuf/stubs/common.h>
+        #include <iostream>
+
+        int main() {
+            // Verify protobuf library version is accessible
+            std::cout << "libprotobuf version: "
+                      << google::protobuf::internal::VersionString(
+                             GOOGLE_PROTOBUF_VERSION)
+                      << std::endl;
+
+            std::cout << "protobuf compile-and-link test passed" << std::endl;
+            return 0;
+        }
+        EOF
+
+        g++ $(pkg-config --cflags protobuf) test.cpp -o test $(pkg-config --libs protobuf)
+        ./test

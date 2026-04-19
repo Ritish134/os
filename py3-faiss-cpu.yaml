@@ -1,7 +1,7 @@
 package:
   name: py3-faiss-cpu
   version: "1.13.2"
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/py3-faiss-cpu
   description: Community-maintained faiss wheel builder
   annotations:
     cgr.dev/ecosystem: python
@@ -9,6 +9,9 @@ package:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "8"
+    memory: 11Gi
 
 vars:
   import: faiss
@@ -69,6 +72,7 @@ subpackages:
           packages:
             - py${{range.key}}-numpy-2.2
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

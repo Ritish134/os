@@ -1,36 +1,43 @@
 package:
   name: lttng-ust
-  version: "2.14.0"
-  epoch: 3
+  version: "2.15.0"
+  epoch: 2 # go/wolfi-rsc/lttng-ust
   description: LTTng 2.0 Userspace Tracer
   copyright:
     - license: LGPL-2.1-or-later
+  resources:
+    cpu: "3"
+    memory: 6Gi
 
 environment:
   contents:
     packages:
       - autoconf
       - automake
+      - bash-binsh
       - build-base
-      - busybox
       - ca-certificates-bundle
+      - libtool
       - linux-headers
+      - pkgconf-dev
       - py3-setuptools
       - python3
       - userspace-rcu-dev
       - util-linux-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 82cdfd304bbb2b2b7d17cc951a6756b37a9f73868ec0ba7db448a0d5ca51b763
-      uri: https://lttng.org/files/lttng-ust/lttng-ust-${{package.version}}.tar.bz2
+      repository: https://git.lttng.org/lttng-ust.git
+      tag: v${{package.version}}
+      expected-commit: 367b4da09d0f6dad591d7de6d38c7764f7f0e1ef
 
   - uses: autoconf/configure
     with:
       opts: |
-        --disable-static \
+        --disable-man-pages \
         --disable-numa \
+        --disable-static \
         --enable-python-agent
 
   - uses: autoconf/make
@@ -50,7 +57,7 @@ subpackages:
     description: lttng-ust manpages
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/emptypackage
 
   - name: lttng-ust-dev
     pipeline:
@@ -84,11 +91,14 @@ subpackages:
           mv "${{targets.destdir}}"/usr/lib/python* "${{targets.subpkgdir}}"/usr/lib/
           mv "${{targets.destdir}}"/usr/lib/liblttng-ust-python* "${{targets.subpkgdir}}"/usr/lib/
     description: lttng-ust python agent
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 7135
+  git:
+    strip-prefix: v
 
 test:
   pipeline:

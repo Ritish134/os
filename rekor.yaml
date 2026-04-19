@@ -1,37 +1,42 @@
 package:
   name: rekor
-  version: "1.4.3"
-  epoch: 2 # CVE-2025-61729
+  version: "1.5.1"
+  epoch: 9 # GHSA-xmrv-pmrh-hhx2
   description: Software Supply Chain Transparency Log
   copyright:
     - license: Apache-2.0
   checks:
     disabled:
       - empty
+  resources:
+    cpu: "2"
+    memory: 8Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
     packages:
       - busybox
       - git
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/sigstore/rekor
       tag: v${{package.version}}
-      expected-commit: cb5b1d5f364a8437e1c6c857b200283e2dcc2b29
+      expected-commit: bb573aab48ad294657cb4f1e8e0dabe1d2a77f69
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
-      modroot: hack/tools
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/crypto@v0.45.0
+        golang.org/x/net@v0.51.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
 
 subpackages:
   - name: ${{package.name}}-server
@@ -41,8 +46,13 @@ subpackages:
           modroot: .
           packages: ./cmd/rekor-server
           output: rekor-server
-          ldflags: -w
-      - uses: strip
+          go-package: go-1.25
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: rekor-server
+            expect-contains: "Rekor fulfills the signature transparency role"
 
   - name: ${{package.name}}-cli
     pipeline:
@@ -51,8 +61,13 @@ subpackages:
           modroot: .
           packages: ./cmd/rekor-cli
           output: rekor-cli
-          ldflags: -w
-      - uses: strip
+          go-package: go-1.25
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: rekor-cli
+            expect-contains: "Rekor command line interface tool"
 
   - name: ${{package.name}}-backfill-index
     pipeline:
@@ -61,8 +76,13 @@ subpackages:
           modroot: .
           packages: ./cmd/backfill-index
           output: backfill-index
-          ldflags: -w
-      - uses: strip
+          go-package: go-1.25
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: backfill-index
+            expect-contains: "Usage of backfill-index:"
 
 update:
   enabled: true

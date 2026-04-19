@@ -1,7 +1,7 @@
 package:
   name: py3-async-lru
-  version: "2.0.5"
-  epoch: 2
+  version: "2.3.0"
+  epoch: 0
   description: Simple LRU cache for asyncio
   copyright:
     - license: MIT
@@ -28,7 +28,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: b19193ce0c4ea565a307415b9d5eccc7693e66d3
+      expected-commit: cb9e034619167668af09c7be71a37e2d40a96995
       repository: https://github.com/aio-libs/async-lru
       tag: v${{package.version}}
 
@@ -49,6 +49,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

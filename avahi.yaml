@@ -1,14 +1,18 @@
 package:
   name: avahi
-  version: 0.9_rc1
-  epoch: 44
+  version: 0.9_rc4
+  epoch: 0
   description: A multicast/unicast DNS-SD framework
   copyright:
     - license: LGPL-2.1
   dependencies:
     runtime:
       - merged-usrsbin
+      - merged-varrun
       - wolfi-baselayout
+  resources:
+    cpu: "2"
+    memory: 3Gi
 
 environment:
   contents:
@@ -46,7 +50,7 @@ pipeline:
     with:
       repository: https://github.com/avahi/avahi
       tag: v${{vars.mangled-package-version}}
-      expected-commit: 8ee3bd6f7921b489bde14f120187a5becf134d30
+      expected-commit: 625ca0fac19229f6dfa3a6c6b698ae657187e50c
 
   - runs: |
       autoreconf -fi
@@ -57,6 +61,7 @@ pipeline:
         --prefix=/usr \
         --sbindir=/usr/bin \
         --localstatedir=/var \
+        --runstatedir=/run \
         --with-distro=none \
         --disable-qt3 \
         --disable-qt4 \

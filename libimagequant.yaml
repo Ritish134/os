@@ -1,10 +1,13 @@
 package:
   name: libimagequant
   version: "4.4.1"
-  epoch: 0
+  epoch: 2 # go/wolfi-rsc/libimagequant
   description: Palette quantization library that powers pngquant and other PNG optimizers
   copyright:
     - license: GPL-3.0-or-later
+  resources:
+    cpu: "1"
+    memory: 8Gi
 
 environment:
   contents:
@@ -61,6 +64,7 @@ subpackages:
             - libimagequant-dev
             - posix-libc-utils
       pipeline:
+        - uses: test/tw/devpackage
         - name: Basic libimagequant function test
           runs: |
             cat << 'EOF' > test_libimagequant.c

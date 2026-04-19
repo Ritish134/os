@@ -2,7 +2,7 @@
 package:
   name: pciutils
   version: 3.10.0
-  epoch: 40
+  epoch: 42 # go/wolfi-rsc/pciutils
   description: PCI bus configuration space access library and tools
   copyright:
     - license: GPL-2.0-only
@@ -10,6 +10,9 @@ package:
     runtime:
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
@@ -98,6 +101,7 @@ subpackages:
     description: pciutils dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
 
 update:
@@ -112,3 +116,13 @@ test:
         lspci --version
         setpci --version
         setpci --help
+    - name: Test lspci functional operation
+      runs: |
+        set -euo pipefail
+        # lspci exits 0 even without PCI hardware, proving it can initialize and scan
+        lspci
+    - name: Test setpci dumpregs
+      runs: |
+        set -euo pipefail
+        # setpci --dumpregs lists PCI register names without requiring hardware
+        setpci --dumpregs | grep -F "CAP"

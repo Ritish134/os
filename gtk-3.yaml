@@ -1,7 +1,7 @@
 package:
   name: gtk-3
-  version: "3.24.51"
-  epoch: 0
+  version: "3.24.52"
+  epoch: 0 # go/wolfi-rsc/gtk-3
   description: The GTK+ Toolkit (v3)
   copyright:
     - license: LGPL-2.1-or-later
@@ -9,9 +9,16 @@ package:
     post-install: |
       #!/bin/sh
       glib-compile-schemas /usr/share/glib-2.0/schemas
+  dependencies:
+    runtime:
+      - cmd:gtk-update-icon-cache
+  resources:
+    cpu: "2"
+    memory: 10Gi
 
 vars:
   gschemas: "usr/share/glib-2.0/schemas"
+  py-version: "3.13"
 
 # creates a new var that contains only the major and minor version to be used in the fetch URL
 # e.g. 2.46.0 will create a new var mangled-package-version=2.46
@@ -69,7 +76,7 @@ environment:
       - meson
       - ninja
       - pango-dev
-      - py3-packaging
+      - py${{vars.py-version}}-packaging
       - shared-mime-info
       - tiff-dev
       - wayland-dev
@@ -81,7 +88,7 @@ pipeline:
     with:
       repository: https://gitlab.gnome.org/GNOME/gtk.git
       tag: ${{package.version}}
-      expected-commit: 0d3e55cf22abc81b532a3011462b3195f1480974
+      expected-commit: 6a0b360d473f7c546314738c0c8dd9829eb9d3c2
 
   - uses: meson/configure
     with:
@@ -112,6 +119,7 @@ subpackages:
       - uses: split/dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
     dependencies:
@@ -140,6 +148,9 @@ subpackages:
     pipeline:
       - uses: split/locales
     description: gtk+3 locales
+    test:
+      pipeline:
+        - uses: test/tw/langpackage
 
   - name: ${{package.name}}-compiled-gschemas
     description: Compiled gschemas for GTK 3
@@ -151,6 +162,23 @@ subpackages:
           glib-compile-schemas "${{targets.destdir}}/${{vars.gschemas}}"
           install -Dm755 "${{targets.destdir}}/${{vars.gschemas}}/gschemas.compiled" "${{targets.contextdir}}/${{vars.gschemas}}/gschemas.compiled"
           rm "${{targets.destdir}}/${{vars.gschemas}}/gschemas.compiled"
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /${{vars.gschemas}}/gschemas.compiled
+
+  - name: ${{package.name}}-update-icon-cache
+    description: GTK 3 gtk-update-icon-cache utility
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.subpkgdir}}"/usr/bin
+          mv "${{targets.destdir}}"/usr/bin/gtk-update-icon-cache "${{targets.subpkgdir}}"/usr/bin/
+    test:
+      pipeline:
+        - runs: gtk-update-icon-cache --help
+        - uses: test/tw/ldd-check
 
 update:
   enabled: true
@@ -167,7 +195,6 @@ test:
         broadwayd --help
         gtk-encode-symbolic-svg --help
         gtk-launch --version
-        gtk-update-icon-cache --help
         gtk3-demo --version
         gtk3-icon-browser --help
         gtk3-widget-factory --version

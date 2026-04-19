@@ -2,11 +2,15 @@ package:
   name: nginx-mainline
   # MAINLINE VERSIONS MUST USE ODD MINOR VERSIONS (e.g., 1.27.x, 1.29.x)
   # Must also bump njs at the same time
-  version: "1.29.4"
-  epoch: 0
+  version: "1.29.8"
+  epoch: 1
+  # HEY YOU! If you update/bump this package you NEED to go and update the equivilent nginx-otel package
   description: HTTP and reverse proxy server (mainline version)
   copyright:
     - license: BSD-2-Clause
+  cpe:
+    vendor: f5
+    product: nginx
   dependencies:
     provides:
       - nginx=${{package.full-version}}
@@ -16,6 +20,12 @@ package:
       - merged-usrsbin
       - nginx-config
       - wolfi-baselayout
+  resources:
+    cpu: "1"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -32,7 +42,7 @@ environment:
       - libxml2-dev
       - libxslt-dev
       - luajit-dev
-      - openssl-dev
+      - openssl-hardened-dev
       - pcre2-dev
       - perl-dev
       - pkgconf
@@ -74,7 +84,7 @@ pipeline:
     with:
       repository: https://github.com/nginx/nginx.git
       tag: release-${{package.version}}
-      expected-commit: c70457482c4223b6fd9adc3caa6a302163e6030d
+      expected-commit: 5eaf45f11e85459b52c18f876e69320df420ae29
       destination: nginx-mainline
 
   - name: configure
@@ -149,12 +159,104 @@ pipeline:
   - uses: strip
 
 subpackages:
+  - name: nginx-mainline-mime-types
+    description: Nginx mime.types file
+    dependencies:
+      provides:
+        - nginx-mime-types=${{package.full-version}}
+    pipeline:
+      - working-directory: nginx-mainline
+        runs: |
+          mkdir -p ${{targets.subpkgdir}}/etc/nginx
+          mv ./pkg-config/nginx/mime.types ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/mime.types.default ${{targets.subpkgdir}}/etc/nginx/
+    test:
+      pipeline:
+        - runs: |
+            test -f /etc/nginx/mime.types
+            test -f /etc/nginx/mime.types.default
+        - uses: test/virtualpackage
+          with:
+            virtual-pkg-name: nginx-mime-types
+            real-pkg-name: ${{subpkg.name}}
+
+  - name: nginx-mainline-fastcgi-params
+    description: Nginx fastcgi_params file
+    dependencies:
+      provides:
+        - nginx-fastcgi-params=${{package.full-version}}
+    pipeline:
+      - working-directory: nginx-mainline
+        runs: |
+          mkdir -p ${{targets.subpkgdir}}/etc/nginx
+          mv ./pkg-config/nginx/fastcgi_params ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/fastcgi_params.default ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/fastcgi.conf ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/fastcgi.conf.default ${{targets.subpkgdir}}/etc/nginx/
+    test:
+      pipeline:
+        - runs: |
+            stat /etc/nginx/fastcgi_params
+            stat /etc/nginx/fastcgi_params.default
+            stat /etc/nginx/fastcgi.conf
+            stat /etc/nginx/fastcgi.conf.default
+        - uses: test/virtualpackage
+          with:
+            virtual-pkg-name: nginx-fastcgi-params
+            real-pkg-name: ${{subpkg.name}}
+
+  - name: nginx-mainline-scgi-params
+    description: Nginx scgi_params file
+    dependencies:
+      provides:
+        - nginx-scgi-params=${{package.full-version}}
+    pipeline:
+      - working-directory: nginx-mainline
+        runs: |
+          mkdir -p ${{targets.subpkgdir}}/etc/nginx
+          mv ./pkg-config/nginx/scgi_params ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/scgi_params.default ${{targets.subpkgdir}}/etc/nginx/
+    test:
+      pipeline:
+        - runs: |
+            stat /etc/nginx/scgi_params
+            stat /etc/nginx/scgi_params.default
+        - uses: test/virtualpackage
+          with:
+            virtual-pkg-name: nginx-scgi-params
+            real-pkg-name: ${{subpkg.name}}
+
+  - name: nginx-mainline-uwsgi-params
+    description: Nginx uwsgi_params file
+    dependencies:
+      provides:
+        - nginx-uwsgi-params=${{package.full-version}}
+    pipeline:
+      - working-directory: nginx-mainline
+        runs: |
+          mkdir -p ${{targets.subpkgdir}}/etc/nginx
+          mv ./pkg-config/nginx/uwsgi_params ${{targets.subpkgdir}}/etc/nginx/
+          mv ./pkg-config/nginx/uwsgi_params.default ${{targets.subpkgdir}}/etc/nginx/
+    test:
+      pipeline:
+        - runs: |
+            stat /etc/nginx/uwsgi_params
+            stat /etc/nginx/uwsgi_params.default
+        - uses: test/virtualpackage
+          with:
+            virtual-pkg-name: nginx-uwsgi-params
+            real-pkg-name: ${{subpkg.name}}
+
   - name: nginx-mainline-config
     description: Creates nginx config step that can then be overridden by users
     dependencies:
       runtime:
         - merged-usrsbin
         - nginx-mainline
+        - nginx-mainline-fastcgi-params
+        - nginx-mainline-mime-types
+        - nginx-mainline-scgi-params
+        - nginx-mainline-uwsgi-params
         - wolfi-baselayout
       provides:
         - nginx-config=${{package.full-version}}
@@ -181,6 +283,10 @@ subpackages:
     dependencies:
       runtime:
         - ${{package.name}}
+        - ${{package.name}}-fastcgi-params
+        - ${{package.name}}-mime-types
+        - ${{package.name}}-scgi-params
+        - ${{package.name}}-uwsgi-params
       provides:
         - nginx-config=${{package.full-version}}
     pipeline:
@@ -207,6 +313,10 @@ subpackages:
       runtime:
         - merged-usrsbin
         - nginx-mainline
+        - nginx-mainline-fastcgi-params
+        - nginx-mainline-mime-types
+        - nginx-mainline-scgi-params
+        - nginx-mainline-uwsgi-params
         - wolfi-baselayout
       provides:
         - nginx-package-config=${{package.full-version}}
@@ -247,6 +357,24 @@ subpackages:
       runtime:
         - merged-usrsbin
         - wolfi-baselayout
+    test:
+      environment:
+        contents:
+          packages:
+            - nginx-mainline
+            - openrc
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: /etc/init.d/nginx
+        - runs: |
+            addgroup -S nginx
+            adduser -S -G nginx -H -h /dev/null nginx
+            mkdir -p /run/openrc
+            touch /run/openrc/softlevel
+            rc-service nginx start
+            rc-service nginx status
+            rc-service nginx stop
 
   - range: modules
     name: nginx-mainline-mod-${{range.key}}
@@ -305,7 +433,7 @@ subpackages:
           ls -latr ${{targets.contextdir}}/usr/src/nginx
     test:
       pipeline:
-        - uses: test/tw/ldd-check
+        - uses: test/tw/srcpackage
 
   - name: ${{package.name}}-config-compat
     description: Nginx config compatibility with upstream image
@@ -340,6 +468,7 @@ test:
         - ${{package.name}}-config-compat
         - ${{package.name}}-mod-stream
         - curl
+        - wait-for-it
   pipeline:
     - name: Verify Nginx Version
       runs: |
@@ -366,7 +495,7 @@ test:
         # Start Nginx and check if it is running
         nginx
         nginx -t  # Verify the configuration is valid
-        sleep 5  # Give some time for Nginx to start
+        wait-for-it localhost:80 -t 30  # Wait for Nginx to be ready
         curl -I http://localhost  # Check if Nginx is serving a basic request
 
         if [ -f /run/nginx.pid ]; then

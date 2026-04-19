@@ -1,10 +1,13 @@
 package:
   name: rancher-loglevel
   version: 0.1.6
-  epoch: 9 # CVE-2025-61729
+  epoch: 15 # CVE-2026-32280
   description: Complete container management platform - loglevel
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 pipeline:
   - uses: git-checkout
@@ -32,3 +35,8 @@ update:
     identifier: rancher/loglevel
     strip-prefix: v
     use-tag: true
+
+environment:
+  contents:
+    packages:
+      - go-1.25

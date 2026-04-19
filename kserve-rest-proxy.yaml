@@ -1,10 +1,13 @@
 package:
   name: kserve-rest-proxy
   version: 0.12.0
-  epoch: 12 # CVE-2025-61729
+  epoch: 22 # CVE-2026-32280
   description: "REST API proxy for kserve, the standardized serverless ML inference platform on Kubernetes"
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 pipeline:
   - uses: git-checkout
@@ -16,13 +19,15 @@ pipeline:
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/net@v0.38.0
+        golang.org/x/net@v0.48.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       modroot: .
       packages: ./proxy
       output: rest-proxy
+      go-package: go-1.25
 
 subpackages:
   - name: kserve-rest-proxy-compat
@@ -30,22 +35,24 @@ subpackages:
       - name: Link proxy binary to expected path in upstream image
         runs: |
           mkdir -p "${{targets.contextdir}}/go/bin"
-          ln -s "/usr/bin/rest-proxy" "${{targets.contextdir}}/go/bin/server"
-    # test added by a robot (compat)
+          ln -s "../../usr/bin/rest-proxy" "${{targets.contextdir}}/go/bin/server"
     test:
+      environment:
+        contents:
+          packages:
+            - kserve-rest-proxy
       pipeline:
-        - runs: |
-            readlink -v /go/bin/server
+        - uses: test/tw/symlink-check
 
 test:
   environment:
     environment:
       REST_PROXY_GRPC_PORT: 21700
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/daemon-check-output
       with:
-        start: |
-          rest-proxy
+        start: /usr/bin/rest-proxy
         timeout: 60
         expected_output: |
           Not using TLS
@@ -56,3 +63,8 @@ update:
   github:
     identifier: kserve/rest-proxy
     strip-prefix: v
+
+environment:
+  contents:
+    packages:
+      - go-1.25

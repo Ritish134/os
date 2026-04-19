@@ -1,29 +1,26 @@
 package:
   name: docker-machine-driver-linode
-  version: 0.1.15
-  epoch: 8 # GHSA-j5w8-q4qc-rx2x
+  version: "0.1.16"
+  epoch: 1
   description: Linode Driver Plugin for Docker Machine using Linode APIv4
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - rancher-ui-driver-linode
+  resources:
+    cpu: "2"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: d5fe1adaaf54dc42ac5d9846844ea01ffd5f7de3
+      expected-commit: b7bdfe6791a6864c4e56db67ec0ba5276c636122
       repository: https://github.com/linode/docker-machine-driver-linode
       tag: v${{package.version}}
 
   - name: Fix wrong go.sum
     runs: go mod tidy
-
-  - uses: go/bump
-    with:
-      deps: |-
-        golang.org/x/net@v0.38.0
-        golang.org/x/crypto@v0.45.0
 
   - uses: go/build
     with:
@@ -39,10 +36,12 @@ test:
   pipeline:
     - runs: |
         # Binary doesn't provide --version or --help flags so we have the negative test here.
-        docker-machine-driver-linode 2>&1 | grep -q "This is a Docker Machine plugin binary."
+        output=$(docker-machine-driver-linode 2>&1 || true)
+        echo "$output" | grep -q "This is a Docker Machine plugin binary."
         # This is another negative test to check if the driver is working. We can't have proper test
         # because the driver requires a real Linode account to be up and running.
-        rancher-machine create --driver linode --linode-image=linode/ubuntu18.04 --linode-token=test TEST 2>&1 | grep -q "Invalid Token"
+        output=$(rancher-machine create --driver linode --linode-image=linode/ubuntu18.04 --linode-token=test TEST 2>&1 || true)
+        echo "$output" | grep -q "Invalid Token"
 
 update:
   enabled: true
@@ -50,3 +49,8 @@ update:
     identifier: linode/docker-machine-driver-linode
     strip-prefix: v
     use-tag: true
+
+environment:
+  contents:
+    packages:
+      - go-1.25

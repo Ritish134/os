@@ -1,10 +1,13 @@
 package:
   name: quiche
-  version: "0.24.6"
-  epoch: 0
+  version: "0.28.0"
+  epoch: 1 # pin to versioned rust-1.94 toolchain
   description: An implementation of the QUIC transport protocol and HTTP/2 as specified by the IETF
   copyright:
     - license: BSD-2-Clause
+  resources:
+    cpu: "8"
+    memory: 16Gi
 
 var-transforms:
   - from: ${{package.version}}
@@ -15,11 +18,11 @@ var-transforms:
 environment:
   contents:
     packages:
-      - clang
+      - clang-${{vars.clang-version}}
       - cmake
-      - rustup
+      - fontconfig-dev
+      - rust-1.94
   environment:
-    RUSTUP_TOOLCHAIN: stable
     CARGO_TARGET_DIR: target
 
 pipeline:
@@ -27,7 +30,7 @@ pipeline:
     with:
       repository: https://github.com/cloudflare/quiche
       tag: ${{package.version}}
-      expected-commit: 020a43a0a5eed76f57dd3ce5012149aa576c594d
+      expected-commit: a9cb314563a5c13791bd7e5a1e32821e53114e75
 
   - name: Prepare
     runs: |
@@ -85,7 +88,6 @@ test:
   environment:
     contents:
       packages:
-        - wait-for-it
         - openssl
   pipeline:
     - uses: test/tw/ldd-check
@@ -115,5 +117,16 @@ test:
         timeout: 15
         expected_output: " " # Server doesn't output anything on start
         post: |
-          wait-for-it -t 5 --strict localhost:4433 -- echo ":4433 is up"
-          quiche-client https://127.0.0.1:4433/ --no-verify | grep "hello from quiche"
+          # QUIC uses UDP, so wait-for-it (TCP-based) won't work. Use retry loop instead.
+          for i in 1 2 3 4 5; do
+            if quiche-client https://127.0.0.1:4433/ --no-verify 2>/dev/null | grep -q "hello from quiche"; then
+              echo "Successfully connected to QUIC server"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Failed to connect to QUIC server after retries"
+          exit 1
+
+vars:
+  clang-version: 22

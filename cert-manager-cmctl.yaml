@@ -2,21 +2,30 @@ package:
   name: cert-manager-cmctl
   # This got pulled from the cert-manager repo in the 1.15 release, prior to
   # that it was in the cert-manager/cert-manager repo.
-  version: "2.4.0"
-  epoch: 1 # GHSA-j5w8-q4qc-rx2x
+  version: "2.4.1"
+  epoch: 5 # GHSA-q5jf-9vfq-h4h7
   description: Automatically provision and manage TLS certificates in Kubernetes
   copyright:
     - license: Apache-2.0
   dependencies:
     provides:
       - cmctl=${{package.full-version}}
+  resources:
+    cpu: "2"
+    memory: 8Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 669a79b9a77cf988e0655a0cd96cabe9a02601fc
+      expected-commit: 4668ed9fb057dc73396e6050b3319532de74c0c5
       repository: https://github.com/cert-manager/cmctl
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/cloudflare/circl@v1.6.3
+        helm.sh/helm/v4@v4.1.4
 
   - uses: go/build
     with:
@@ -37,3 +46,8 @@ test:
     - runs: |
         cmctl -h
         cmctl --help
+
+environment:
+  contents:
+    packages:
+      - go-1.25

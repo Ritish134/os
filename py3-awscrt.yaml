@@ -1,6 +1,6 @@
 package:
   name: py3-awscrt
-  version: "0.31.0"
+  version: "0.32.1"
   epoch: 0
   description: Python bindings for the AWS Common Runtime
   copyright:
@@ -39,7 +39,7 @@ pipeline:
     with:
       repository: https://github.com/awslabs/aws-crt-python
       tag: v${{package.version}}
-      expected-commit: 0bdff88605bc06b4228658044c4693c1bd07428d
+      expected-commit: eba5fc17a5984e867d1f9d28f2833bc22c2dde70
       recurse-submodules: true
 
 subpackages:
@@ -105,6 +105,7 @@ subpackages:
 
 test:
   pipeline:
+    - uses: test/tw/pip-check
     - uses: python/import
       with:
         imports: |

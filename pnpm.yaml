@@ -1,10 +1,13 @@
 package:
   name: pnpm
-  version: "10.27.0"
-  epoch: 0
+  version: "10.33.0"
+  epoch: 1 # go/wolfi-rsc/pnpm
   description: "Fast, disk space efficient package manager"
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 environment:
   contents:
@@ -18,7 +21,7 @@ environment:
       - git
       - make
       - node-gyp
-      - nodejs-18
+      - nodejs-22
       - npm
       - pnpm
       - python3
@@ -29,7 +32,7 @@ pipeline:
     with:
       repository: https://github.com/pnpm/pnpm
       tag: v${{package.version}}
-      expected-commit: 6bdba72ad31e4d6b79821405e09c6bdcc93894ee
+      expected-commit: be07631710e869cd5bd1fc56538b1698aa2f65f7
 
   - name: "Update pnpm version in package.json"
     runs: |
@@ -78,7 +81,7 @@ test:
   environment:
     contents:
       packages:
-        - nodejs-18
+        - nodejs-22
   pipeline:
     - runs: |
         set -o pipefail

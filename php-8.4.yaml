@@ -1,6 +1,6 @@
 package:
   name: php-8.4
-  version: "8.4.16"
+  version: "8.4.19"
   epoch: 0
   description: "the PHP programming language"
   copyright:
@@ -14,6 +14,9 @@ package:
       - merged-bin
       - merged-usrsbin
       - wolfi-baselayout
+  resources:
+    cpu: "19"
+    memory: 13Gi
 
 var-transforms:
   - from: ${{package.name}}
@@ -70,7 +73,7 @@ pipeline:
     with:
       repository: https://github.com/php/php-src
       tag: php-${{package.version}}
-      expected-commit: 2890cbbc4940f382f2f781d08f12c127b1a06a26
+      expected-commit: d4242a6310a1903b5651f320dda75e2d57cbb458
 
   # https://gitlab.alpinelinux.org/alpine/aports/-/blob/master/community/php84/install-pear.patch
   - uses: patch
@@ -170,6 +173,9 @@ pipeline:
       # so remove it to avoid conflicts with the apache2 package, as it already provides.
       rm -f ${{targets.destdir}}/etc/apache2/httpd.conf
 
+  - name: Remove /var/run (only used by init scripts and services not shipped here)
+    runs: rmdir ${{targets.destdir}}/var/run
+
   - uses: strip
 
 data:
@@ -231,6 +237,9 @@ subpackages:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}/etc/php/conf.d"
           mv php.ini-production ${{targets.subpkgdir}}/etc/php/php.ini
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
 
   - range: extensions
     name: "${{package.name}}-${{range.key}}"
@@ -279,6 +288,9 @@ subpackages:
                   [ "$dep" = "true" ] || echo $dep
                 done | wc -w`
           echo "${prefix}extension=${{range.key}}.so" > $CONF_DIR/"$((order+order*deps))-${{range.key}}.ini"
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
 
   - name: ${{package.name}}-dev
     description: PHP ${{vars.phpMM}} development headers

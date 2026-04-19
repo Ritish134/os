@@ -1,20 +1,39 @@
 package:
   name: cluster-api-provider-vsphere
-  version: "1.15.1"
-  epoch: 0 # CVE-2025-61725
+  version: "1.15.2"
+  epoch: 10 # CVE-2026-32280
   description: Kubernetes-native declarative infrastructure for vSphere.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "8"
+    memory: 14Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 281eb9b1627099a126f5575f9ad4210177e2d885
+      expected-commit: 91522fcca32856a440934dd8c3d5f15ae6932cd5
       repository: https://github.com/kubernetes-sigs/cluster-api-provider-vsphere
       tag: v${{package.version}}
 
+  - uses: bump
+    with:
+      language: go
+      packages: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+      modroot: test
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
+        go.opentelemetry.io/otel/sdk@v1.40.0
+        google.golang.org/grpc@v1.79.3
+
   - uses: go/build
     with:
+      go-package: go-1.25
       ldflags: |
         -X sigs.k8s.io/cluster-api-provider-vsphere/pkg/version.buildDate=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" "+%Y-%m-%dT%H:%M:%SZ")
         -X sigs.k8s.io/cluster-api-provider-vsphere/pkg/version.gitCommit=$(git rev-parse HEAD)
@@ -50,18 +69,31 @@ update:
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         manager --help 2>&1 | grep "Usage of manager"
+    - uses: git-checkout
+      with:
+        repository: https://github.com/kubernetes-sigs/cluster-api-provider-vsphere.git
+        depth: 1
+        tag: v${{package.version}}
+        expected-commit: 91522fcca32856a440934dd8c3d5f15ae6932cd5
     - name: Binary test
       uses: test/kwok/cluster
       with:
         serviceaccount: true
+    - runs: kubectl apply -f ./config/default/crd/bases/
     - name: Launch manager with dummy kubeconfig
       uses: test/daemon-check-output
       with:
-        start: manager
+        start: /usr/bin/manager
         timeout: 30
         expected_output: |
           error opening credentials file
           open /etc/capv/credentials.yaml
           no such file or directory
+
+environment:
+  contents:
+    packages:
+      - go-1.25

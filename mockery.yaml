@@ -1,29 +1,26 @@
 package:
   name: mockery
-  version: "3.6.1"
-  epoch: 1 # CVE-2025-61729
+  version: "3.7.0"
+  epoch: 1 # CVE-2026-32280
   description: A mock code autogenerator for Go
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "3"
+    memory: 7Gi
 
 environment:
   contents:
     packages:
+      - go-1.25
       - wolfi-base
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/vektra/mockery
-      expected-commit: 7827d149a751cb14118f77bc4afd03f80a36c376
+      expected-commit: 61b1a4512604843293e2b3201c158029d052a73d
       tag: v${{package.version}}
-
-  - uses: go/bump
-    with:
-      deps: |-
-        github.com/go-viper/mapstructure/v2@v2.4.0
-      modroot: tools
-      tidy: false
 
   - uses: go/build
     with:

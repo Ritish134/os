@@ -1,13 +1,16 @@
 package:
   name: json-server
   version: 0.17.4
-  epoch: 3
+  epoch: 6 # GHSA-37ch-88jc-xwx2
   description: full fake REST API
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - nodejs
+  resources:
+    cpu: "2"
+    memory: 1Gi
 
 environment:
   contents:
@@ -23,6 +26,10 @@ pipeline:
       repository: https://github.com/typicode/json-server
       tag: v${{package.version}}
       expected-commit: 78ea71375666d49145734689c097654c54f90686
+
+  - runs: |
+      npm pkg set resolutions.qs=6.14.2
+      npm pkg set resolutions.path-to-regexp=0.1.13
 
   - name: npm install
     uses: npm/install

@@ -1,7 +1,7 @@
 package:
   name: py3-flit-core
   version: "3.12.0"
-  epoch: 2
+  epoch: 5
   description: "simple packaging tool for simple packages (core)"
   copyright:
     - license: BSD-3-Clause
@@ -18,6 +18,7 @@ data:
       3.11: "311"
       3.12: "312"
       3.13: "313"
+      3.14: "314"
 
 environment:
   contents:
@@ -25,12 +26,15 @@ environment:
       - build-base
       - busybox
       - py3-supported-python
+      # py3-supported-python doesn't support py3.14 just yet
+      - python-3.14-base
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://files.pythonhosted.org/packages/source/f/flit/flit-${{package.version}}.tar.gz
-      expected-sha256: 1c80f34dd96992e7758b40423d2809f48f640ca285d0b7821825e50745ec3740
+      repository: https://github.com/pypa/flit
+      tag: ${{package.version}}
+      expected-commit: 1c8141722066ffe1497e511982feeea0f091ddb6
 
 subpackages:
   - range: py-versions
@@ -64,6 +68,9 @@ subpackages:
   - name: py3-wheels-${{vars.pypi-package}}
     pipeline:
       - uses: py/collect-wheels
+    test:
+      pipeline:
+        - uses: test/tw/byproductpackage
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -73,14 +80,16 @@ subpackages:
         - py3.11-${{vars.pypi-package}}
         - py3.12-${{vars.pypi-package}}
         - py3.13-${{vars.pypi-package}}
+        - py3.14-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: test/metapackage
+        - uses: test/tw/metapackage
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 44841
+  github:
+    identifier: pypa/flit
+    use-tag: true
 
 test:
   pipeline:

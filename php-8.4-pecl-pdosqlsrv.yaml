@@ -1,13 +1,16 @@
 package:
   name: php-8.4-pecl-pdosqlsrv
-  version: 5.12.0
-  epoch: 2
+  version: "5.13.0"
+  epoch: 2 # add tests
   description: "Provides PHP ${{vars.phpMM}} Microsoft Drivers for SQL Server (PDO_SQLSRV) - PECL"
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - php-${{vars.phpMM}}
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 var-transforms:
   - from: ${{package.name}}
@@ -36,7 +39,7 @@ pipeline:
     with:
       repository: https://github.com/microsoft/msphpsql
       tag: "v${{package.version}}"
-      expected-commit: 98ff5a8bd4c022cc15664f1478fab2d7629262da
+      expected-commit: fd6d71d987dddcea413d9fc94234191cb82e4a28
 
   - runs: |
       cd source
@@ -63,5 +66,18 @@ update:
     tag-filter: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - php-${{vars.phpMM}}
+        - php-${{vars.phpMM}}-pdo
   pipeline:
+    - name: Verify pdo_sqlsrv extension loads
+      runs: |
+        php -m | grep -i pdo_sqlsrv
+        php -r "
+        if (!extension_loaded('pdo_sqlsrv')) {
+            die('pdo_sqlsrv extension is not loaded\n');
+        }
+        echo 'pdo_sqlsrv extension loaded successfully\n';"
     - uses: test/tw/ldd-check

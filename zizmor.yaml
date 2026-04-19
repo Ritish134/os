@@ -1,16 +1,19 @@
 package:
   name: zizmor
-  version: "1.20.0"
-  epoch: 0
+  version: "1.24.1"
+  epoch: 2 # GHSA-965h-392x-2mh5
   description: "A static analysis tool for GitHub Actions"
   copyright:
     - license: MIT
+  resources:
+    cpu: "13"
+    memory: 13Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/woodruffw/zizmor
-      expected-commit: 2780ee5207ec9bb3b24e44b82edeb778c511435d
+      expected-commit: 2eaf42bcccfed62978cee0905902acbc294d5123
       tag: v${{package.version}}
 
   - uses: rust/cargobump

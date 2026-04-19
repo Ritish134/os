@@ -13,3 +13,15 @@ packages:
     version: 0.5.15
   - name: tracing-subscriber
     version: 0.3.20
+  - name: bytes
+    version: 1.11.1
+  - name: time
+    version: 0.3.47
+  - name: aws-lc-rs
+    version: 1.16.2
+  - name: quinn-proto
+    version: 0.11.14
+  - name: rustls-webpki
+    version: 0.103.12
+  - name: rand
+    version: 0.9.3

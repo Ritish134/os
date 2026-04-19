@@ -1,15 +1,21 @@
 package:
   name: aws-privateca-issuer
-  version: "1.8.0"
-  epoch: 0 # CVE-2025-47910
+  version: "1.8.1"
+  epoch: 1 # CVE-2026-32280
   description: Addon for cert-manager that issues certificates using AWS ACM PCA.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "3"
+    memory: 6Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 0ce98d6fbf29cb577593cbb75482dbd0ff5c6e61
+      expected-commit: 6cbe9d50812d325c1d897b70bef31126f1ac4a30
       repository: https://github.com/cert-manager/aws-privateca-issuer
       tag: v${{package.version}}
 
@@ -20,6 +26,7 @@ pipeline:
         -X github.com/cert-manager/aws-privateca-issuer/pkg/api/injections.PlugInVersion=${{package.version}}
       output: manager
       packages: .
+      go-package: go-1.26
 
 subpackages:
   - name: aws-privateca-issuer-compat
@@ -45,3 +52,8 @@ test:
     - name: "Verify Installation"
       runs: |
         manager --help
+
+environment:
+  contents:
+    packages:
+      - go-1.26

@@ -1,0 +1,98 @@
+package:
+  name: hollywood
+  version: "1.25"
+  epoch: 1
+  description: "fill your console with Hollywood melodrama technobabble"
+  copyright:
+    - license: Apache-2.0
+  dependencies:
+    runtime:
+      - atop
+      - bat
+      - byobu
+      - ccze
+      - cmatrix
+      - coreutils
+      - figlet
+      - jp2a
+      - man-db
+      - pv
+      - tmux
+
+environment:
+  contents:
+    packages:
+      - busybox
+      - ca-certificates-bundle
+      - wolfi-base
+
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/dustinkirkland/hollywood
+      expected-commit: 4bfa29772a6e2f1e4aecbd3e26fde7dc69cce6eb
+      tag: ${{package.version}}
+
+  - runs: |
+      mkdir -p "${{targets.destdir}}"/usr/bin
+      mkdir -p "${{targets.destdir}}"/usr/lib
+      mkdir -p "${{targets.destdir}}"/usr/share/man/man1
+      mkdir -p "${{targets.destdir}}"/usr/share
+
+      install -m 755 bin/hollywood "${{targets.destdir}}"/usr/bin/
+      cp -a lib/hollywood "${{targets.destdir}}"/usr/lib/
+      install -m 644 share/man/man1/hollywood.1 "${{targets.destdir}}"/usr/share/man/man1/
+      cp -a share/hollywood "${{targets.destdir}}"/usr/share/
+
+update:
+  enabled: true
+  github:
+    identifier: dustinkirkland/hollywood
+    use-tag: true
+
+test:
+  environment:
+    contents:
+      packages:
+        - bash
+        - byobu
+        - tmux
+  pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/shell-syntax-check
+    - name: Verify hollywood binary is executable
+      runs: |
+        set -euo pipefail
+        # Verify the main script is executable
+        test -x /usr/bin/hollywood
+    - name: Verify widget scripts syntax and existence
+      runs: |
+        set -euo pipefail
+        # Verify all widget lib scripts exist and have valid bash syntax
+        count=0
+        for script in /usr/lib/hollywood/*; do
+          if [ -f "$script" ]; then
+            bash -n "$script"
+            count=$((count + 1))
+          fi
+        done
+        echo "Checked syntax of $count widget scripts"
+        # Ensure we found a reasonable number of widget scripts
+        if [ "$count" -lt 10 ]; then
+          echo "FAIL: Expected at least 10 widget scripts, found $count"
+          exit 1
+        fi
+    - name: Verify share directory and contents
+      runs: |
+        set -euo pipefail
+        # Verify share directory exists
+        test -d /usr/share/hollywood
+
+subpackages:
+  - name: hollywood-doc
+    description: hollywood documentation
+    pipeline:
+      - uses: split/manpages
+    test:
+      pipeline:
+        - uses: test/tw/docs

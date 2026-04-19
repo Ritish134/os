@@ -1,6 +1,6 @@
 package:
   name: dnsdist-2.0
-  version: "2.0.2"
+  version: "2.0.3"
   epoch: 1
   description: PowerDNS dnsdist — highly DNS-, DoS- and abuse-aware load-balancer
   copyright:
@@ -14,6 +14,9 @@ package:
       addgroup -S dnsdist 2>/dev/null
       adduser  -S -D -H -h /var/empty -s /bin/false -G dnsdist -g dnsdist dnsdist 2>/dev/null
       exit 0
+  resources:
+    cpu: "20"
+    memory: 48Gi
 
 vars:
   python-version: 3.12 # Pinning 3.12 due to imghdr. See: https://peps.python.org/pep-0594/#imghdr
@@ -41,7 +44,7 @@ environment:
       - mtdev-dev
       - net-snmp-dev
       - nghttp2-dev
-      - openssl-dev
+      - openssl-hardened-dev
       - pkgconf-dev
       - protobuf-dev
       - py${{vars.python-version}}-build-base-dev
@@ -61,7 +64,7 @@ pipeline:
     with:
       repository: https://github.com/PowerDNS/pdns
       tag: dnsdist-${{package.version}}
-      expected-commit: 1c91ab014ab195b3dcc0e6778d70465c2e63152b
+      expected-commit: 4108ae9f5f169166dba3e7f386be570304dfa224
 
   - working-directory: ./pdns/dnsdistdist
     pipeline:
@@ -213,12 +216,18 @@ test:
     - name: "daemon smoke-test for entrypoint"
       uses: test/daemon-check-output
       with:
+        setup: |
+          # Use non-default port to avoid conflicts with existing listeners on :53
+          mkdir -p /etc/dnsdist/conf.d
+          tee /etc/dnsdist/conf.d/test-port.conf <<'EOF'
+          setLocal("127.0.0.1:5354")
+          EOF
         start: "/usr/bin/tini -- /usr/local/bin/dnsdist-startup"
         timeout: 30
         expected_output: |
           Listening on
         post: |
-          wait-for-it -t 5 --strict 127.0.0.1:53 -- echo "dnsdist is up"
+          wait-for-it -t 5 --strict 127.0.0.1:5354 -- echo "dnsdist is up"
     - name: "daemon smoke-test for standalone"
       uses: test/daemon-check-output
       with:
@@ -236,7 +245,7 @@ test:
           no known issues reported
         post: |
           wait-for-it -t 5 --strict 127.0.0.1:5300 -- echo "dnsdist is up"
-          dig @127.0.0.1 -p 5300 example.com A | grep -q "ANSWER"
+          dig @127.0.0.1 -p 5300 example.com A | grep -F "ANSWER"
 
 update:
   enabled: true

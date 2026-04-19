@@ -1,12 +1,15 @@
 package:
   name: py3-zope.interface
-  version: "8.1.1"
-  epoch: 0
+  version: "8.3"
+  epoch: 0 # go/wolfi-rsc/py3-zope.interface
   description: Interfaces for Python
   copyright:
     - license: ZPL-2.1
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 vars:
   pypi-package: zope.interface
@@ -28,7 +31,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 67cbd39998070aa5590f010f3db249c847ef4c69
+      expected-commit: 197258cab160d5f45ed72d004cded8ceecc8ccff
       repository: https://github.com/zopefoundation/zope.interface
       tag: ${{package.version}}
 
@@ -49,6 +52,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

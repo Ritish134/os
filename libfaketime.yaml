@@ -1,12 +1,17 @@
 package:
   name: libfaketime
   version: "0.9.12"
-  epoch: 1
+  epoch: 5
   description: "libfaketime modifies the system time for a single application"
   copyright:
     - license: GPL-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
+  environment:
+    CFLAGS: -DFAKE_RANDOM -Wno-discarded-qualifiers
   contents:
     packages:
       - build-base
@@ -23,7 +28,9 @@ pipeline:
   - uses: autoconf/make-install
     with:
       opts: |
-        PREFIX=/usr FAKETIME_COMPILE_CFLAGS=-DFAKE_RANDOM
+        PREFIX=/usr FAKETIME_COMPILE_CFLAGS="-DFAKE_RANDOM -Wno-discarded-qualifiers"
+
+  - uses: strip
 
 test:
   pipeline:

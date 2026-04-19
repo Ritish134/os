@@ -1,12 +1,15 @@
 package:
   name: py3-mpmath
-  version: 1.3.0
-  epoch: 7
+  version: "1.4.1"
+  epoch: 0 # go/wolfi-rsc/py3-mpmath
   description: Python library for arbitrary-precision floating-point arithmetic
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 vars:
   pypi-package: mpmath
@@ -26,12 +29,14 @@ environment:
       - busybox
       - py3-supported-pip
       - py3-supported-python
+      - py3-supported-setuptools
+      - py3-supported-setuptools-scm
       - py3-supported-wheel
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: b5c04506ef0cd4a1f1213f8389ee21c9c3551582
+      expected-commit: c1131e2d64abcbb57728ca8a499c920c0c69e67f
       repository: https://github.com/mpmath/mpmath
       tag: ${{package.version}}
 
@@ -50,6 +55,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

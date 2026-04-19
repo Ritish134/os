@@ -1,14 +1,14 @@
 package:
   name: zed
-  version: "0.217.4"
-  epoch: 1 # GHSA-9c48-w39g-hm26
-  description: Code at the speed of thought – Zed is a high-performance, multiplayer code editor from the creators of Atom and Tree-sitter.
+  version: "0.228.0"
+  epoch: 2
+  description: Zed is a high-performance, multiplayer code editor from the creators of Atom and Tree-sitter.
   copyright:
     - license: GPL-3.0-only
   resources:
     # https://go/wolfi-rsc/zed
     cpu: 30
-    memory: 64Gi
+    memory: 80Gi
 
 vars:
   llvm-vers: 18
@@ -26,12 +26,13 @@ environment:
       - curl-dev
       - fontconfig-dev
       - freetype-dev
-      - libgit2-dev=1.8.4-r0 # version pin currently required for rust to install
+      - glib-dev
+      - libgit2-dev
       - libxcb-dev
       - libxkbcommon-dev
       - mimalloc2-dev
       - mold
-      - openssl-dev
+      - openssl-hardened-dev
       - protoc
       - rust
       - sqlite-dev
@@ -44,13 +45,19 @@ pipeline:
     with:
       repository: https://github.com/zed-industries/zed
       tag: v${{package.version}}
-      expected-commit: 39c2ebc0db1d1436f3e77090261c77bd66056291
+      expected-commit: 8421009ef8a022df1196d54bb42fd94366ec0988
 
-  - uses: patch
+  - uses: bump
     with:
-      patches: fix-smallvec-features.patch
-
-  - uses: rust/cargobump
+      deps: |-
+        rsa@0.9.10
+        aws-lc-rs@1.16.2
+        aws-sdk-bedrockruntime@1.113.0
+        aws-sdk-sso@1.89.0
+        aws-sdk-ssooidc@1.91.0
+        aws-sdk-sts@1.91.0
+        git2@0.20.4
+        quinn-proto@0.11.14
 
   - runs: |
       cargo fetch --locked

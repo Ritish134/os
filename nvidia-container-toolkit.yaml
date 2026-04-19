@@ -1,7 +1,7 @@
 package:
   name: nvidia-container-toolkit
-  version: "1.18.1"
-  epoch: 1 # CVE-2025-61729
+  version: "1.19.0"
+  epoch: 3 # CVE-2026-27140
   description: Build and run containers leveraging NVIDIA GPUs
   copyright:
     - license: Apache-2.0
@@ -15,16 +15,21 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     GCC_SPEC_FILE: no-hardening.spec
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: efe99418ef87500dbe059cadc9ab418b2815b9d5
+      expected-commit: ec7b4e2fa2caecad6d89be4a26029b831fe7503a
       repository: https://github.com/NVIDIA/nvidia-container-toolkit
       tag: v${{package.version}}
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
 
 data:
   - name: commands
@@ -45,30 +50,71 @@ subpackages:
         with:
           modroot: .
           packages: ./cmd/${{range.value}}
-          ldflags: -s -w '-extldflags=-Wl,-undefined,dynamic_lookup' -X github.com/NVIDIA/nvidia-container-toolkit/internal/info.gitCommit=$(git rev-parse HEAD) -X github.com/NVIDIA/nvidia-container-toolkit/internal/info.version=${{package.version}}
+          ldflags: "'-extldflags=-Wl,-undefined,dynamic_lookup' -X github.com/NVIDIA/nvidia-container-toolkit/internal/info.gitCommit=$(git rev-parse HEAD) -X github.com/NVIDIA/nvidia-container-toolkit/internal/info.version=${{package.version}}"
           output: ${{range.value}}
           vendor: true
     test:
       pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: ${{range.value}}
+        - uses: test/tw/ver-check
+          with:
+            bins: ${{range.value}}
         - runs: |
+            set -euo pipefail
             apk add runc # runc is just a placeholder, the actual runtime binary is TBD by the user
-            ${{range.value}} --help
+
+            # Binary-specific functional tests
+            case "${{range.value}}" in
+              nvidia-ctk)
+                # Test that runtime subcommand is available
+                nvidia-ctk runtime --help
+                # Test that cdi subcommand is available
+                nvidia-ctk cdi --help
+                ;;
+              nvidia-cdi-hook)
+                # nvidia-cdi-hook has documented subcommands
+                nvidia-cdi-hook create-symlinks --help
+                nvidia-cdi-hook update-ldcache --help
+                ;;
+            esac
 
   - name: "${{package.name}}-nvidia-toolkit"
     pipeline:
       - runs: |
           # Ref: https://github.com/NVIDIA/nvidia-container-toolkit/blob/v1.15.0/deployments/container/Dockerfile.ubi8#L74
           mkdir -p ${{targets.contextdir}}/work
-          ln -sf /usr/bin/nvidia-ctk-installer ${{targets.contextdir}}/work/nvidia-toolkit
-          ln -sf /usr/bin/nvidia-ctk-installer ${{targets.contextdir}}/work/nvidia-ctk-installer
+          ln -sf ../usr/bin/nvidia-ctk-installer ${{targets.contextdir}}/work/nvidia-toolkit
+          ln -sf ../usr/bin/nvidia-ctk-installer ${{targets.contextdir}}/work/nvidia-ctk-installer
     dependencies:
       runtime:
         - ${{package.name}}-nvidia-ctk-installer
     test:
       pipeline:
+        - uses: test/tw/symlink-check
+        - uses: test/tw/ver-check
+          with:
+            bins: /work/nvidia-toolkit /work/nvidia-ctk-installer
+
+  - name: "${{package.name}}-nvidia-ctk-systemd-service"
+    description: Systemd services to configure NVIDIA Container Toolkit for container runtimes
+    pipeline:
+      - runs: |
+          mkdir -p "${{targets.contextdir}}/usr/lib/systemd/system"
+          install -m644 nvidia-ctk-configure-crio.service "${{targets.contextdir}}/usr/lib/systemd/system/"
+          install -m644 nvidia-ctk-configure-containerd.service "${{targets.contextdir}}/usr/lib/systemd/system/"
+          install -m644 nvidia-ctk-configure-docker.service "${{targets.contextdir}}/usr/lib/systemd/system/"
+    dependencies:
+      runtime:
+        - ${{package.name}}-nvidia-ctk
+    test:
+      pipeline:
+        - uses: test/verify-service
         - runs: |
-            /work/nvidia-toolkit --version
-            /work/nvidia-ctk-installer --version
+            [ -f /usr/lib/systemd/system/nvidia-ctk-configure-crio.service ]
+            [ -f /usr/lib/systemd/system/nvidia-ctk-configure-containerd.service ]
+            [ -f /usr/lib/systemd/system/nvidia-ctk-configure-docker.service ]
 
 update:
   enabled: true

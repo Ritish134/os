@@ -1,12 +1,15 @@
 package:
   name: py3-seaborn
   version: 0.13.2
-  epoch: 7
+  epoch: 9 # go/wolfi-rsc/py3-seaborn
   description: Statistical data visualization
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "2"
+    memory: 6Gi
 
 vars:
   pypi-package: seaborn
@@ -52,6 +55,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

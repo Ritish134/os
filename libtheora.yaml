@@ -1,10 +1,13 @@
 package:
   name: libtheora
   version: 1.2.0
-  epoch: 1
+  epoch: 5
   description: An open video codec developed by the Xiph.org
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "3"
+    memory: 5Gi
 
 environment:
   contents:
@@ -14,18 +17,19 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
+      - doxygen
       - libogg-dev
       - libtool
       - libvorbis-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha512: 2f64006b645df1bf0d4d8dd3f35bdce4d92bf676f1bc4acc050ea5add1c7363c87548206f089a30898bf551cc447ba0c7a15d10b50061fd8a98902697499a288
-      uri: https://downloads.xiph.org/releases/theora/libtheora-${{package.version}}.tar.gz
+      repository: https://github.com/xiph/theora
+      tag: v${{package.version}}
+      expected-commit: 8e4808736e9c181b971306cc3f05df9e61354004
 
-  - runs: |
-      libtoolize --force && aclocal -I m4 && autoconf --force && automake --force --add-missing && autoheader
+  - runs: ./autogen.sh
 
   - runs: |
       CFLAGS="${CFLAGS/-Os/-O3}" CPPFLAGS="${CPPFLAGS/-Os/-O3}" ./configure \
@@ -45,13 +49,14 @@ subpackages:
   # This has to come before -dev
   - name: ${{package.name}}-static
     description: ${{package.name}} static libraries
+    dependencies:
+      runtime:
+        - libogg-static
     pipeline:
       - uses: split/static
-    # test added by a robot (static)
     test:
       pipeline:
-        - runs: |
-            find /usr/lib/ -name "*.a" -type f | grep -q .
+        - uses: test/tw/staticpackage
 
   - name: ${{package.name}}-dev
     pipeline:
@@ -59,6 +64,7 @@ subpackages:
     description: ${{package.name}} dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
@@ -67,21 +73,43 @@ subpackages:
   - name: ${{package.name}}-doc
     description: ${{package.name}} documentation
     pipeline:
-      - uses: split/manpages
-      - uses: split/infodir
-      - name: "relocate other docs"
-        runs: |
-          mkdir -p "${{targets.subpkgdir}}"/usr/share
-          mv "${{targets.destdir}}"/usr/share/doc "${{targets.subpkgdir}}"/usr/share
+      - uses: split/alldocs
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 11793
+  git:
+    strip-prefix: v
+    tag-filter-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - libtheora-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test library compilation and usage
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <theora/theora.h>
+        #include <stdio.h>
+
+        int main() {
+            theora_info ti;
+            theora_info_init(&ti);
+            printf("libtheora initialized successfully\n");
+            printf("version: %d\n", theora_version_number());
+            theora_info_clear(&ti);
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags theora) test.c -o test $(pkg-config --libs theora)
+        ./test

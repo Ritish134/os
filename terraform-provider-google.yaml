@@ -1,25 +1,35 @@
 package:
   name: terraform-provider-google
-  version: "7.15.0"
-  epoch: 0 # GHSA-4f99-4q7p-p3gh
+  version: "7.28.0"
+  epoch: 0 # GHSA-hfvc-g4fc-pqhx
   description: Terraform GCP provider
   copyright:
     - license: MPL-2.0
   dependencies:
     runtime:
       - terraform-local-provider-config
+  resources:
+    cpu: "8"
+    memory: 21Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/hashicorp/terraform-provider-google
       tag: v${{package.version}}
-      expected-commit: 3b35a546dd3c48ba647e1f1d2bf8f6e9a2d1860c
+      expected-commit: 54c21b6734da0cc3792cb49d7e7fb666be30ce23
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
       packages: .
       output: terraform-provider-google
+      go-package: go-1.26
 
   - runs: |
       GOARCH=$(go env GOARCH)
@@ -39,13 +49,18 @@ test:
       packages:
         - terraform
   pipeline:
-    ## GPT script test
-    - name: Test Terraform Provider Google Installation
-      runs: |
-        terraform-provider-google --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: terraform-provider-google
     - name: Initialize Terraform with Google Provider
       runs: |
         mkdir test-terraform
         cd test-terraform
         echo 'provider "google" {}' > main.tf
         terraform init
+
+environment:
+  contents:
+    packages:
+      - go-1.26

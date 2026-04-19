@@ -1,12 +1,21 @@
 package:
   name: syft
-  version: "1.39.0"
-  epoch: 0 # CVE-2025-61729
+  version: "1.42.4"
+  epoch: 2 # GHSA-92mm-2pjq-r785
   description: CLI tool and library for generating a Software Bill of Materials from container images and filesystems
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 10Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
+  contents:
+    packages:
+      - go-1.25
   environment:
     CGO_ENABLED: "0"
 
@@ -15,27 +24,30 @@ pipeline:
     with:
       repository: https://github.com/anchore/syft
       tag: v${{package.version}}
-      expected-commit: e9e34948534ab945c7e750376235cfe0c442f532
+      expected-commit: f6189175279981a79d8d8c15669c570f15a00568
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-git/go-git/v5@v5.17.1
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/hashicorp/go-getter@v1.8.6
 
   - uses: go/bump
     with:
       deps: |-
         github.com/ulikunitz/xz@v0.5.14
-      modroot: syft/pkg/cataloger/golang/test-fixtures/image-not-a-module
-
-  - uses: go/bump
-    with:
-      deps: |-
-        github.com/ulikunitz/xz@v0.5.14
-      modroot: syft/pkg/cataloger/golang/test-fixtures/image-small
+      modroot: |-
+        syft/pkg/cataloger/golang/testdata/image-not-a-module
+        syft/pkg/cataloger/golang/testdata/image-small
 
   - uses: go/build
     with:
+      go-package: go-1.25
       ldflags: -X main.version=${{package.version}}
       output: syft
       packages: ./cmd/syft
-
-  - uses: strip
 
 update:
   enabled: true
@@ -49,10 +61,14 @@ test:
       packages:
         - jq
   pipeline:
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: syft
+    - uses: test/tw/help-check
+      with:
+        bins: syft
     - runs: |
-        syft --version
-        syft --help
-
         syft cgr.dev/chainguard/static:latest -o syft-json > sbom-default.json
         jq . sbom-default.json
 

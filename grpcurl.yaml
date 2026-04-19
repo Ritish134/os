@@ -1,13 +1,16 @@
 package:
   name: grpcurl
   version: "1.9.3"
-  epoch: 9 # CVE-2025-61729
+  epoch: 18 # GHSA-78h2-9frx-2jm8
   description: CLI tool to interact with gRPC servers
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
@@ -20,12 +23,15 @@ pipeline:
     with:
       deps: |-
         golang.org/x/oauth2@v0.27.0
+        github.com/go-jose/go-jose/v4@v4.1.4
         golang.org/x/net@v0.38.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: ./cmd/grpcurl
       output: grpcurl
+      go-package: go-1.25
       ldflags: -X main.version=v${{package.version}}
 
 update:
@@ -40,13 +46,14 @@ test:
       packages:
         - openfga
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         /usr/bin/grpcurl --help
         grpcurl --version 2>&1 | grep ${{package.version}}
     - name: test grpcurl
       uses: test/daemon-check-output
       with:
-        start: openfga run
+        start: /usr/bin/openfga run
         expected_output: |
           starting openfga service...
           starting gRPC server
@@ -54,3 +61,8 @@ test:
         post: |
           grpcurl -plaintext localhost:8081 list
           grpcurl -plaintext localhost:8081 describe grpc.health.v1.Health
+
+environment:
+  contents:
+    packages:
+      - go-1.25

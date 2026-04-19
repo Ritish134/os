@@ -1,12 +1,15 @@
 package:
   name: py3-forestci
   version: '0.7'
-  epoch: 8
+  epoch: 10 # go/wolfi-rsc/py3-forestci
   description: 'forestci: confidence intervals for scikit-learn forest algorithms'
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "3"
+    memory: 5Gi
 
 vars:
   pypi-package: forestci
@@ -50,6 +53,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

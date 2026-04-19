@@ -2,12 +2,18 @@
 package:
   name: py3-typing-extensions
   version: "4.15.0"
-  epoch: 1
+  epoch: 5 # go/wolfi-rsc/py3-typing-extensions
   description: Backported and Experimental Type Hints for Python 3.7+
   copyright:
     - license: PSF-2.0
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  test-resources:
+    cpu: "2"
+    memory: 2Gi
 
 vars:
   pypi-package: typing-extensions
@@ -20,6 +26,7 @@ data:
       3.11: "311"
       3.12: "312"
       3.13: "313"
+      3.14: "314"
 
 environment:
   contents:
@@ -56,7 +63,12 @@ subpackages:
       - uses: strip
     test:
       pipeline:
-        - runs: python${{range.key}} -c "from ${{vars.module_name}} import TypeAlias, TypeGuard"
+        - uses: test/tw/pip-check
+        - uses: python/import
+          with:
+            python: python${{range.key}}
+            imports: |
+              import ${{vars.module_name}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -66,9 +78,10 @@ subpackages:
         - py3.11-${{vars.pypi-package}}
         - py3.12-${{vars.pypi-package}}
         - py3.13-${{vars.pypi-package}}
+        - py3.14-${{vars.pypi-package}}
     test:
       pipeline:
-        - uses: test/metapackage
+        - uses: test/tw/metapackage
 
 update:
   enabled: true

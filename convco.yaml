@@ -1,10 +1,13 @@
 package:
   name: convco
-  version: "0.6.2"
-  epoch: 0
+  version: "0.6.3"
+  epoch: 2 # GHSA-j39j-6gw9-jw6h
   description: A Conventional commit cli
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 environment:
   contents:
@@ -14,19 +17,20 @@ environment:
       - ca-certificates
       - cargo-auditable
       - cmake
-      - rust
+      - rust-1.94
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/convco/convco
       tag: v${{package.version}}
-      expected-commit: bd91188f16e5b8ab0bd557030a2e88df1c684856
+      expected-commit: a92cfa73dcc6803ada2733f31c63e452725982df
 
-  - runs: |
-      cargo auditable build --release
-      mkdir -p "${{targets.contextdir}}"/usr/bin
-      mv ./target/release/convco "${{targets.contextdir}}"/usr/bin/convco
+  - uses: rust/cargobump
+
+  - uses: cargo/build
+    with:
+      output: convco
 
   - uses: strip
 
@@ -37,7 +41,49 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - git
   pipeline:
-    - runs: |
-        convco --version | grep ${{package.version}}
-        convco --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: convco
+    - uses: test/tw/help-check
+      with:
+        bins: convco
+    - name: Test convco with conventional commits
+      runs: |
+        set -euo pipefail
+
+        # Setup: Initialize a git repository with conventional commits
+        mkdir -p /tmp/test-repo
+        cd /tmp/test-repo
+        git init
+        git config user.email "test@test.com"
+        git config user.name "Test User"
+
+        # Create an initial conventional commit
+        echo "initial" > file.txt
+        git add file.txt
+        git commit -m "feat: initial feature"
+
+        # Create a fix commit
+        echo "fix" >> file.txt
+        git add file.txt
+        git commit -m "fix: resolve a bug"
+
+        # Test: convco check validates commit messages
+        convco check
+
+        # Test: convco changelog generates output
+        changelog=$(convco changelog)
+        echo "$changelog" | grep -F "initial feature"
+        echo "$changelog" | grep -F "resolve a bug"
+
+        # Test: convco version computes a semantic version
+        version=$(convco version)
+        echo "$version" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$"
+
+        echo "SUCCESS: convco functional tests passed"

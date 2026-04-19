@@ -1,15 +1,19 @@
 package:
   name: karma
-  version: "0.122"
+  version: "0.129"
   description: "A dashboard for managing alerts from Alertmanager"
-  epoch: 1 # CVE-2025-61729
+  epoch: 1 # GHSA-vffh-x6r8-xx99
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 environment:
   contents:
     packages:
       - ca-certificates-bundle
+      - go-1.26
       - nodejs
       - npm
       - wolfi-base
@@ -19,7 +23,12 @@ pipeline:
     with:
       repository: https://github.com/prymitive/karma.git
       tag: v${{package.version}}
-      expected-commit: 940df4d1a4d0c36fefc0954d5fae8f9d66fa5307
+      expected-commit: d8f9d55a761e8cfaa104ac27da41884412217b4a
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/prometheus/prometheus@v0.311.2-0.20260410083055-07c6232d159b
 
   - name: install-npm-dependencies
     working-directory: ui
@@ -37,13 +46,9 @@ pipeline:
     runs: |
       cp -r ui/src ./ui/dist ./ui/mock ./ui/embed.go .
 
-  - uses: go/bump
-    with:
-      deps: |-
-        github.com/go-chi/chi/v5@v5.2.2
-
   - uses: go/build
     with:
+      go-package: go-1.26
       packages: ./cmd/${{package.name}}
       ldflags: -X main.version=${{package.version}}
       output: ${{package.name}}
@@ -54,9 +59,10 @@ test:
       packages:
         - curl
   pipeline:
-    - name: Run Karma test
-      runs: |
-        karma --version
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: karma
     - name: "Check karma health"
       uses: test/daemon-check-output
       with:
@@ -65,8 +71,9 @@ test:
         expected_output: |
           Starting HTTP server
         post: |
+          set -euo pipefail
           sleep 3
-          curl -s http://localhost:8080/health | grep "Pong" || exit 1
+          curl -s http://localhost:8080/health | grep -F "Pong"
 
 update:
   enabled: true

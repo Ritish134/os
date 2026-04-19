@@ -1,10 +1,13 @@
 package:
   name: mage
-  version: 1.15.0
-  epoch: 18 # CVE-2025-61725
+  version: "1.17.1"
+  epoch: 1
   description: a Make/rake-like dev tool using Go
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -12,7 +15,7 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.26
       - wolfi-baselayout
 
 pipeline:
@@ -20,15 +23,13 @@ pipeline:
     with:
       repository: https://github.com/magefile/mage
       tag: v${{package.version}}
-      expected-commit: 9e91a03eaa438d0d077aca5654c7757141536a60
+      expected-commit: 00dd13d9f6e84a3d212618dc1456cef0c661b231
 
   - runs: |
       mkdir -p $(go env GOPATH)/bin
       go run bootstrap.go
       mkdir -p "${{targets.destdir}}"/usr/bin
       mv $(go env GOPATH)/bin/mage "${{targets.destdir}}"/usr/bin
-
-  - uses: strip
 
 update:
   enabled: true
@@ -45,12 +46,14 @@ test:
         - coreutils
         - go
   pipeline:
-    - name: "Verify mage installation"
-      runs: |
-        mage -version
-    - name: "Test help system"
-      runs: |
-        mage -h
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: mage
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: mage
     - name: "Test list functionality with empty directory"
       runs: |
         mkdir empty_project
@@ -83,6 +86,7 @@ test:
         ./mage_binary hello
     - name: "Test multiple targets"
       runs: |
+        set -euo pipefail
         cd test_project
         cat >> magefile.go << 'EOF'
 

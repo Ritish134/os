@@ -1,10 +1,13 @@
 package:
   name: linenoise
-  version: 1.0
-  epoch: 6
+  version: "2.0"
+  epoch: 2 # go/wolfi-rsc/linenoise
   description: "minimal alternative to GNU readline"
   copyright:
     - license: BSD-2-Clause
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -14,10 +17,11 @@ environment:
       - ca-certificates-bundle
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      uri: https://github.com/antirez/linenoise/archive/${{package.version}}/linenoise-${{package.version}}.tar.gz
-      expected-sha256: f5054a4fe120d43d85427cf58af93e56b9bb80389d507a9bec9b75531a340014
+      repository: https://github.com/antirez/linenoise
+      tag: ${{package.version}}
+      expected-commit: dc83cc373ac2058030eb3cf5e404959a26fef112
 
   - uses: patch
     with:
@@ -39,12 +43,15 @@ subpackages:
         - linenoise
     test:
       pipeline:
+        - uses: test/pkgconf
         - uses: test/tw/ldd-check
+        - uses: test/tw/header-check
 
 update:
   enabled: true
-  release-monitor:
-    identifier: 5691
+  github:
+    identifier: antirez/linenoise
+    use-tag: true
 
 test:
   pipeline:

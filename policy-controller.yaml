@@ -1,8 +1,8 @@
 package:
   name: policy-controller
-  version: "0.13.1"
-  epoch: 4 # CVE-2025-61729
-  description: The policy admission controller used to enforce policy on a cluster on verifiable supply-chain metadata from cosign.
+  version: "0.15.1"
+  epoch: 4 # GHSA-xm5m-wgh2-rrg3
+  description: "The policy admission controller used to enforce policy on a cluster on verifiable supply-chain metadata from cosign."
   copyright:
     - license: Apache-2.0
   dependencies:
@@ -14,27 +14,31 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
       - make
 
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: ccbb37f3009753a72c7f6ee18002406b857b2204
+      expected-commit: cc75baab1d34d3bae47bde7bd934bf79e5ca3afc
       repository: https://github.com/sigstore/policy-controller
       tag: v${{package.version}}
 
   - uses: go/bump
     with:
       deps: |-
-        golang.org/x/crypto@v0.45.0
+        github.com/sigstore/rekor@v1.5.0
+        github.com/sigstore/sigstore@v1.10.4
+        github.com/theupdateframework/go-tuf/v2@v2.4.1
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        github.com/sigstore/timestamp-authority/v2@v2.0.6
 
   - runs: |
       mkdir -p "${{targets.destdir}}/usr/bin"
       make policy-controller && mv policy-controller "${{targets.destdir}}/usr/bin/policy-controller"
       make policy-tester && mv policy-tester "${{targets.destdir}}/usr/bin/policy-tester"
-
-  - uses: strip
 
 subpackages:
   - name: policy-controller-tester
@@ -69,6 +73,7 @@ test:
     environment:
       SYSTEM_NAMESPACE: default
   pipeline:
+    - uses: test/tw/ldd-check
     - runs: |
         policy-controller --help
     - uses: test/kwok/cluster
@@ -111,11 +116,11 @@ test:
           git clone --branch v${{package.version}} --depth 1 https://github.com/sigstore/policy-controller
           kubectl apply -k policy-controller/config
           sleep 1
-        start: policy-controller
+        start: /usr/bin/policy-controller
         timeout: 30
         expected_output: |
           Initializing TUF root
-          successfully acquired lease default/policy-controller.
+          Successfully acquired lease
           Reconcile succeeded
         post: |
           curl --silent --fail localhost:9090/metrics

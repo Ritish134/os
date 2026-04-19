@@ -1,13 +1,16 @@
 package:
   name: ruby3.3-builder
   version: 3.3.0
-  epoch: 0
+  epoch: 2
   description: Provides a simple way to create XML markup and data structures.
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - ruby-${{vars.rubyMM}}
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -45,10 +48,10 @@ update:
 
 test:
   pipeline:
-    - name: Test basic import
-      runs: ruby -e "require 'builder'"
+    - uses: test/tw/gem-check
     - name: Basic test
       runs: |
+        set -euo pipefail
         cat > test_example.rb <<EOT
         require 'builder'
 
@@ -56,7 +59,7 @@ test:
         puts builder.person { |b| b.name("Linky"); b.phone("867-5309") }
         EOT
 
-        ruby test_example.rb | grep "<person><name>Linky<\/name><phone>867-5309<\/phone><\/person>"
+        ruby test_example.rb | grep -F "<person><name>Linky</name><phone>867-5309</phone></person>"
 
 var-transforms:
   - from: ${{package.name}}

@@ -1,10 +1,13 @@
 package:
   name: tiff
   version: "4.7.1"
-  epoch: 0
+  epoch: 4 # go/wolfi-rsc/tiff
   description: Provides support for the Tag Image File Format or TIFF
   copyright:
     - license: libtiff
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 environment:
   contents:
@@ -34,6 +37,10 @@ pipeline:
       autoreconf -fiv
 
   - uses: autoconf/configure
+    with:
+      opts: |
+        --enable-pic \
+        --enable-static
 
   - uses: autoconf/make
 
@@ -58,16 +65,34 @@ subpackages:
       - uses: split/dev
     dependencies:
       runtime:
-        - tiff
-        - zlib-dev
+        - ${{package.name}}=${{package.full-version}}
         - libjpeg-turbo-dev
         - libwebp-dev
+        - zlib-dev
         - zstd-dev
     description: tiff dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
+
+  - name: "tiff-static"
+    description: "Statically linked tiff"
+    dependencies:
+      runtime:
+        - ${{package.name}}-dev=${{package.full-version}}
+        - libjpeg-turbo-static
+        - libwebp-static
+        - zlib-static
+        - zstd-static
+    pipeline:
+      - uses: split/static
+        with:
+          package: "tiff-dev"
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
 update:
   enabled: true
@@ -76,14 +101,36 @@ update:
     tag-filter-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - tiff-dev
+        - build-base
+        - pkgconf
   pipeline:
-    - name: Check tiffinfo can be used to scan a .tif file
+    - uses: test/tw/ldd-check
+    - name: Test tiffinfo with output validation
       runs: |
-        tiffinfo example-file-for-tests.tif
-        fax2ps version
-        fax2ps help
-        fax2tiff version
-        fax2tiff help
+        set -euo pipefail
+        tiffinfo example-file-for-tests.tif | grep -F "TIFF Directory"
+    - name: Test libtiff compile and link
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <tiffio.h>
+        #include <stdio.h>
+        int main() {
+            printf("TIFF library version: %s\n", TIFFGetVersion());
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libtiff-4) test.c -o test $(pkg-config --libs libtiff-4)
+        ./test | grep -F "TIFF"
+    - name: Test CLI tools
+      runs: |
+        set -euo pipefail
         pal2rgb -h
         ppm2tiff -h
         raw2tiff --help

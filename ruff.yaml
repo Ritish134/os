@@ -1,10 +1,13 @@
 package:
   name: ruff
-  version: "0.14.10"
-  epoch: 0 # GHSA-xwfj-jgwm-7wp5
+  version: "0.15.11"
+  epoch: 0 # GHSA-xphw-cqx3-667j
   description: An extremely fast Python linter, written in Rust.
   copyright:
     - license: MIT
+  resources:
+    cpu: "19"
+    memory: 24Gi
 
 environment:
   contents:
@@ -13,22 +16,21 @@ environment:
       - busybox
       - ca-certificates-bundle
       - cargo-auditable
-      - clang
-      - rust
+      - clang-${{vars.clang-version}}
+      - rust-1.94
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/astral-sh/ruff
       tag: ${{package.version}}
-      expected-commit: 45bbb4cbffe73cf925d4579c2e3eb413e0539390
+      expected-commit: 53554b1cfe837f2eb992a81794480699478f1116
 
   - uses: rust/cargobump
 
-  - runs: |
-      cargo auditable build --release
-      mkdir -p ${{targets.destdir}}/usr/bin
-      mv target/release/ruff ${{targets.destdir}}/usr/bin/
+  - uses: cargo/build
+    with:
+      output: ruff
 
   - uses: strip
 
@@ -41,9 +43,9 @@ subpackages:
           mv target/release/ruff_python_formatter ${{targets.subpkgdir}}/usr/bin/
     test:
       pipeline:
-        - runs: |
-            ruff_python_formatter --version
-            ruff_python_formatter --help
+        - uses: test/tw/help-check
+          with:
+            bins: ruff_python_formatter
 
 update:
   enabled: true
@@ -52,10 +54,13 @@ update:
 
 test:
   pipeline:
-    - name: Verify ruff installation
-      runs: |
-        ruff --version || exit 1
-        ruff --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: ruff
+    - uses: test/tw/help-check
+      with:
+        bins: ruff
     - name: Lint a Python file
       runs: |
         echo 'print("Hello, world!")' > test.py
@@ -64,3 +69,6 @@ test:
       runs: |
         echo 'print("Hello, world!")' > test.py
         ruff check --select F401 test.py || exit 1
+
+vars:
+  clang-version: 22

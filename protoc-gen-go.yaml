@@ -1,10 +1,13 @@
 package:
   name: protoc-gen-go
   version: "1.36.11"
-  epoch: 0 # CVE-2025-61729
+  epoch: 5 # CVE-2026-27140
   description: Go support for Google's protocol buffers
   copyright:
     - license: BSD-3-Clause
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 pipeline:
   - uses: git-checkout
@@ -124,3 +127,8 @@ test:
         if protoc --go_out=. --go_opt=paths=source_relative invalid.proto 2>/dev/null; then
           exit 1
         fi
+
+environment:
+  contents:
+    packages:
+      - go-1.25

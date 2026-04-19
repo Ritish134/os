@@ -1,10 +1,13 @@
 package:
   name: yajl
   version: 2.1.0
-  epoch: 8
+  epoch: 11 # go/wolfi-rsc/yajl
   description: Yet Another JSON Library (YAJL)
   copyright:
     - license: ISC
+  resources:
+    cpu: "2"
+    memory: 4Gi
 
 environment:
   contents:
@@ -41,6 +44,9 @@ subpackages:
     pipeline:
       - uses: split/static
     description: yajl static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: yajl-dev
     pipeline:
@@ -56,8 +62,19 @@ subpackages:
 
   - name: yajl-tools
     pipeline:
-      - runs: mkdir -p  ${{targets.subpkgdir}}/usr mv ${{targets.destdir}}/usr/bin  ${{targets.subpkgdir}}/usr
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr
+          mv ${{targets.destdir}}/usr/bin ${{targets.subpkgdir}}/usr
     description: JSON tools based on Yajl
+    test:
+      pipeline:
+        - uses: test/tw/help-check
+          with:
+            bins: "json_reformat json_verify"
+        - runs: |
+            echo '{"key":"value","num":42}' | json_reformat | grep -q '"key"'
+            echo '{"key":"value"}' | json_verify | grep -q "JSON is valid"
+            echo 'not valid json' | json_verify && exit 1 || true
 
 test:
   pipeline:

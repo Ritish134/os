@@ -1,7 +1,7 @@
 package:
   name: php-8.4-protobuf
-  version: "4.33.2"
-  epoch: 0
+  version: "5.34.1"
+  epoch: 0 # go/wolfi-rsc/php-8.4-protobuf
   description: "Protocol Buffers - Google's data interchange format"
   copyright:
     - license: BSD-3-Clause
@@ -9,6 +9,9 @@ package:
     runtime:
       - ${{package.name}}-config
       - php-${{vars.phpMM}}
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 var-transforms:
   - from: ${{package.name}}
@@ -30,7 +33,7 @@ pipeline:
   - uses: fetch
     with:
       uri: https://pecl.php.net/get/protobuf-${{package.version}}.tgz
-      expected-sha512: 147e45892bafe525cbf22e1d14536bac423ae421f506680a65b0fdfe0125eccaed01a0ccae9b93c97718b0f16b54b81798bb36b267674667750aa8607c806f67
+      expected-sha512: e83d5ebfe6bfc11202f52e7327b8ce0fcd607a44be42d07e4ea4785bbba71fcd56a99259e76439cc1f9edd16b04753280007ca40dc59bc442570a610b2b8084c
 
   - name: Prepare build
     runs: phpize
@@ -61,6 +64,9 @@ subpackages:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}/etc/php/conf.d"
           echo "extension=protobuf.so" > "${{targets.subpkgdir}}/etc/php/conf.d/protobuf.ini"
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
 
 update:
   enabled: true

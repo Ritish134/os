@@ -1,10 +1,16 @@
 package:
   name: freetype
-  version: 2.14.1
-  epoch: 0
+  version: "2.14.3"
+  epoch: 2
   description: TrueType font rendering library
   copyright:
     - license: FTL OR GPL-2.0-or-later
+  resources:
+    cpu: "1"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -23,7 +29,7 @@ environment:
 pipeline:
   - uses: fetch
     with:
-      expected-sha256: 32427e8c471ac095853212a37aef816c60b42052d4d9e48230bab3bdf2936ccc
+      expected-sha256: 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
       # gnu.org redirects downloads to random mirrors, that may or may not be updated
       # this forces us to be specific server that is known to be up-to-date
       uri: https://mirrors.ocf.berkeley.edu/nongnu/freetype/freetype-${{package.version}}.tar.xz
@@ -46,8 +52,16 @@ pipeline:
 subpackages:
   - name: freetype-static
     description: freetype static library
+    dependencies:
+      runtime:
+        - libpng-static
+        - libx11-static
+        - zlib-static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
   - name: freetype-dev
     pipeline:

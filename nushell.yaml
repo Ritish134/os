@@ -1,7 +1,7 @@
 package:
   name: nushell
-  version: "0.109.1"
-  epoch: 0
+  version: "0.112.2"
+  epoch: 0 # fix test: remove incorrect OpenSSL dynamic linking check
   description: A new type of shell
   copyright:
     - license: MIT
@@ -20,14 +20,19 @@ environment:
       - libgit2-dev
       - libssh2-dev
       - openssl-dev
-      - rust
+      - rust-1.94
       - sqlite-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 53d4611113a17ed3a29b0c81ea981d546a40dafca77fdcd9af7a7629ceabf48f
-      uri: https://github.com/nushell/nushell/archive/${{package.version}}.tar.gz
+      repository: https://github.com/nushell/nushell
+      tag: ${{package.version}}
+      expected-commit: d80ee8c19e07a8058e50a30a4205d3e97068f585
+
+  - name: "bump some rust dependencies before running cargobump"
+    runs: |
+      sed -i 's/lru = "0\.12"/lru = "0.16.3"/' Cargo.toml
 
   - uses: rust/cargobump
 
@@ -47,14 +52,17 @@ pipeline:
         rusqlite = { rustc-link-lib = ["sqlite3"] }
       EOF
 
-  - runs: |
-      cargo auditable build --workspace --locked --release
+  - uses: cargo/build
+    with:
+      opts: --workspace --release
+      output: nu
 
+  - runs: |
       find target/release \
         -maxdepth 1 \
         -executable \
         -type f \
-        -name "nu*" \
+        -name "nu_plugin_*" \
         -exec install -vDm755 -t "${{targets.destdir}}/usr/bin" "{}" +
 
   - uses: strip
@@ -66,9 +74,13 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/bin/
           mv ${{targets.destdir}}/usr/bin/nu_plugin_* ${{targets.contextdir}}/usr/bin/
     description: nushell plugins
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
 
 test:
   pipeline:
+    - uses: test/tw/ldd-check
     - name: version and command test
       runs: |
         nu --version || exit 1

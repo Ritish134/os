@@ -1,13 +1,16 @@
 package:
   name: opentelemetry-java-instrumentation
-  version: "2.23.0"
-  epoch: 0
+  version: "2.26.1"
+  epoch: 0 # go/wolfi-rsc/opentelemetry-java-instrumentation
   description: OpenTelemetry auto-instrumentation and instrumentation libraries for Java
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - busybox
+  resources:
+    cpu: "5"
+    memory: 20Gi
 
 vars:
   java-version: "21"
@@ -29,7 +32,7 @@ pipeline:
     with:
       repository: https://github.com/open-telemetry/opentelemetry-java-instrumentation
       tag: v${{package.version}}
-      expected-commit: 351b6970940f05ab74e9d08ed320d9ea0d94d5fc
+      expected-commit: 9cf4fbaaa9e79226142b2ed42a6f6b4ac0be2197
 
   - name: Disable ErrorProne warning in gradle build config, as it produces FTBFS-level warnings
     runs: |
@@ -58,9 +61,11 @@ test:
         test -f /javaagent.jar
     - name: Run Java with agent
       runs: |
+        set -euo pipefail
         echo 'public class Hello { public static void main(String[] args) { System.out.println("Hello!"); } }' > Hello.java
         javac Hello.java
-        java -javaagent:/javaagent.jar Hello | grep -q "Hello!"
+        java -javaagent:/javaagent.jar Hello | grep -F "Hello!"
     - name: Validate agent initialization output
       runs: |
-        java -javaagent:/javaagent.jar -version 2>&1 | grep -qi "opentelemetry"
+        set -euo pipefail
+        java -javaagent:/javaagent.jar -version 2>&1 | grep -Fi "opentelemetry"

@@ -1,10 +1,16 @@
 package:
   name: harfbuzz
-  version: "12.3.0"
-  epoch: 0
+  version: "14.1.0"
+  epoch: 1
   description: Text shaping library
   copyright:
     - license: MIT
+  resources:
+    cpu: "7"
+    memory: 10Gi
+  test-resources:
+    cpu: "1"
+    memory: 3Gi
 
 environment:
   contents:
@@ -31,7 +37,7 @@ pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/harfbuzz/harfbuzz
-      expected-commit: b0af59229cc233a66106c696534ac39be56093d8
+      expected-commit: cfb70b0b91af933a08339c7c8eef459df1098d7b
       tag: ${{package.version}}
 
   # oldglibc has redundant declarations, which is harmless
@@ -60,6 +66,17 @@ subpackages:
   - name: harfbuzz-static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
+    dependencies:
+      runtime:
+        - cairo-static
+        - freetype-static
+        - glib-static
+        - graphite2-static
+        - libpng-static
+        - zlib-static
     description: harfbuzz static
 
   - name: harfbuzz-dev
@@ -75,6 +92,7 @@ subpackages:
     description: harfbuzz dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
           with:
@@ -98,15 +116,20 @@ subpackages:
     description: harfbuzz (utilities)
     test:
       pipeline:
-        - runs: |
-            hb-info --version
-            hb-info --help
-            hb-shape --version
-            hb-shape --help
-            hb-subset --version
-            hb-subset --help
-            hb-view --version
-            hb-view --help
+        - uses: test/tw/ver-check
+          with:
+            bins: |
+              hb-info
+              hb-shape
+              hb-subset
+              hb-view
+        - uses: test/tw/help-check
+          with:
+            bins: |
+              hb-info
+              hb-shape
+              hb-subset
+              hb-view
 
 update:
   enabled: true
@@ -135,12 +158,14 @@ test:
                 --output-format=ansi
     - name: "Test RTL text shaping"
       runs: |
+        set -euo pipefail
         echo -e "\u0645\u0631\u062D\u0628\u0627" | \
         hb-view --font-file=/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf \
                 --direction=rtl \
                 --output-format=ansi
     - name: "Test complex script shaping"
       runs: |
+        set -euo pipefail
         echo -e "\u0909\u092A\u0915\u0930\u0923" | \
         hb-view --font-file=/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf \
                 --features="+liga,+kern" \

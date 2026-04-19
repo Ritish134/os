@@ -1,10 +1,16 @@
 package:
   name: rqlite
-  version: "9.3.11"
-  epoch: 0 # GHSA-j5w8-q4qc-rx2x
+  version: "9.4.5"
+  epoch: 11 # CVE-2026-32280
   description: The lightweight, distributed relational database built on SQLite
   copyright:
     - license: MIT
+  resources:
+    cpu: "2"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -12,13 +18,20 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
+      - go-1.25
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/rqlite/rqlite
       tag: v${{package.version}}
-      expected-commit: 9589c3caa5da939fb3e2bbb143e0b06b301ac1dd
+      expected-commit: 41d7a347ab2db0fa494fc9553b9d9467c343a678
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
 
   - runs: |
       # docker-entrypoint.sh: update hardcoded docker entrypoint
@@ -28,15 +41,23 @@ pipeline:
     with:
       packages: ./cmd/rqlite
       tags: osusergo,netgo,sqlite_omit_load_extension
-      ldflags: -extldflags=-static
       output: rqlite
+      ldflags: |
+        -X github.com/rqlite/rqlite/v9/cmd.Version=${{package.version}}
+        -X github.com/rqlite/rqlite/v9/cmd.Branch=$(git rev-parse --abbrev-ref HEAD)
+        -X github.com/rqlite/rqlite/v9/cmd.Commit=$(git rev-parse HEAD)
+        -X github.com/rqlite/rqlite/v9/cmd.Buildtime=$(date +%Y-%m-%dT%T%z)
 
   - uses: go/build
     with:
       packages: ./cmd/rqlited
       tags: osusergo,netgo,sqlite_omit_load_extension
-      ldflags: -extldflags=-static
       output: rqlited
+      ldflags: |
+        -X github.com/rqlite/rqlite/v9/cmd.Version=${{package.version}}
+        -X github.com/rqlite/rqlite/v9/cmd.Branch=$(git rev-parse --abbrev-ref HEAD)
+        -X github.com/rqlite/rqlite/v9/cmd.Commit=$(git rev-parse HEAD)
+        -X github.com/rqlite/rqlite/v9/cmd.Buildtime=$(date +%Y-%m-%dT%T%z)
 
 subpackages:
   - name: rqlite-oci-entrypoint
@@ -47,6 +68,15 @@ subpackages:
     dependencies:
       runtime:
         - busybox # The entrypoint script uses a shell
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: |
+              /usr/bin/docker-entrypoint.sh
+        - runs: |
+            stat /usr/bin/docker-entrypoint.sh
+            test -x /usr/bin/docker-entrypoint.sh || { echo "ERROR: /usr/bin/docker-entrypoint.sh is not executable"; exit 1; }
 
 test:
   environment:
@@ -54,27 +84,26 @@ test:
       packages:
         - curl
   pipeline:
-    - runs: |
-        rqlited ~/node.1 > /dev/null 2>&1 &
-        sleep 5 # wait for rqlited to start
-
-        RQLITE_URL="http://127.0.0.1:4001"
-
-        # Check the status using the HTTP API
-        output=$(curl -s "$RQLITE_URL/status")
-
-        # Check if the output contains expected status information
-        if echo "$output" | grep -q '"store":'; then
-          echo "rqlite server is running."
-          exit 0
-        else
-          echo "Failed to connect to rqlite server."
-          exit 1
-        fi
-        rqlite --version
-        rqlite --help
-        rqlited --version
-        rqlited --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: rqlited
+        version-flag: "-version"
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          rqlite
+          rqlited
+        help-flag: "-help"
+    - uses: test/daemon-check-output
+      with:
+        start: rqlited /tmp/node.1
+        timeout: 60
+        expected_output: "is now Leader"
+        error_strings: ""
+        post: |
+          set -euo pipefail
+          curl -sf http://127.0.0.1:4001/status | grep -F '"store":'
 
 update:
   enabled: true

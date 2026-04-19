@@ -1,20 +1,23 @@
 package:
   name: ghaudit
   version: 0.4.0
-  epoch: 16 # CVE-2025-61725
+  epoch: 22 # CVE-2026-32280
   description: Experimental tool for evaluating Chainguard's GitHub policies.
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates-bundle
+  resources:
+    cpu: "1"
+    memory: 4Gi
 
 environment:
   contents:
     packages:
       - busybox
       - ca-certificates-bundle
-      - go
+      - go-1.25
   environment:
     CGO_ENABLED: "0"
 
@@ -46,6 +49,9 @@ test:
 
         # This should print usage.
         GH_TOKEN=foo ghaudit --help
+    - uses: test/qackage
+      with:
+        exception: "Core functionality (auditing GitHub organization policies) requires valid GitHub API credentials (GH_TOKEN) and network access to the GitHub API, which are not available in the build/test environment."
 
 update:
   enabled: true

@@ -1,10 +1,13 @@
 package:
   name: parseable
-  version: "2.5.6"
-  epoch: 0 # GHSA-xwfj-jgwm-7wp5
+  version: "2.6.6"
+  epoch: 1 # GHSA-965h-392x-2mh5
   description: "Parseable is a log analytics system built for high throughput log ingestion cases."
   copyright:
     - license: AGPL-3.0-or-later
+  resources:
+    cpu: "28"
+    memory: 19Gi
 
 environment:
   contents:
@@ -21,7 +24,7 @@ pipeline:
     with:
       repository: https://github.com/parseablehq/parseable
       tag: v${{package.version}}
-      expected-commit: 925eedeecb74ca8603a939728680480525c3fb24
+      expected-commit: eacb1b9edab03f0b58260a86e1fb6e35a8edfbbc
 
   - uses: rust/cargobump
 

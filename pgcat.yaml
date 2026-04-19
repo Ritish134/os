@@ -1,10 +1,13 @@
 package:
   name: pgcat
   version: 1.2.0
-  epoch: 6 # GHSA-xwfj-jgwm-7wp5
+  epoch: 11 # GHSA-434x-w66g-qw3r
   description: "PostgreSQL pooler with sharding, load balancing and failover support."
   copyright:
     - license: MIT
+  resources:
+    cpu: "7"
+    memory: 8Gi
 
 environment:
   contents:
@@ -23,6 +26,10 @@ pipeline:
       tag: v${{package.version}}
       expected-commit: 4a7a6a8e7a78354b889002a4db118a8e2f2d6d79
 
+  - name: Bump lru to 0.16.3 to remediate GHSA-rhfx-m35p-ff5j
+    runs: |
+      sed -i 's/^lru = "0\.12\.0"/lru = "0.16.3"/' Cargo.toml
+
   - name: Update ambiguous dependencies
     # To bring in tokio 1.38.2, we must update socket2 dependency from 0.5.3 to 0.5.5,
     # can not use cargobump as there are multiple specific definitons of this in the project
@@ -30,7 +37,7 @@ pipeline:
       cargo update -p 'socket2@0.5.3' --precise 0.5.5
       cargo update -p rustls --precise 0.21.11
 
-  - uses: rust/cargobump
+  - uses: bump
 
   - name: Configure and build
     runs: |

@@ -1,10 +1,13 @@
 package:
   name: wadm
-  version: "0.21.0"
-  epoch: 4 # GHSA-xwfj-jgwm-7wp5
+  version: "0.21.1"
+  epoch: 10 # GHSA-6xvm-j4wr-6v98
   description: "Wasm-native orchestrator for managing and scaling declarative wasmCloud applications"
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "10"
+    memory: 11Gi
 
 environment:
   contents:
@@ -13,22 +16,22 @@ environment:
       - busybox
       - ca-certificates-bundle
       - cargo-auditable
-      - rust
+      - rust-1.94
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/wasmCloud/wadm
       tag: v${{package.version}}
-      expected-commit: 8a1cd9e8e40e28a80ab8fdc6ccc637ecb1a9ed96
+      expected-commit: 100f635d11667e9a3c913819dfecc4f3051e6da2
+
+  - uses: bump
 
   - uses: rust/cargobump
 
-  - name: Configure and build
-    runs: |
-      cargo auditable build --release --bin wadm
-      mkdir -p ${{targets.destdir}}/usr/bin/
-      mv target/release/wadm ${{targets.destdir}}/usr/bin/
+  - uses: cargo/build
+    with:
+      output: wadm
 
   - uses: strip
 
@@ -40,8 +43,27 @@ update:
     tag-filter-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - nats-server
+        - wait-for-it
   pipeline:
-    - name: Verify wadm installation
-      runs: |
-        wadm --version || exit 1
-        wadm --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: wadm
+    - uses: test/tw/help-check
+      with:
+        bins: wadm
+    - name: Start wadm daemon and verify it connects to NATS
+      uses: test/daemon-check-output
+      with:
+        setup: |
+          # Start NATS server with JetStream enabled; wadm requires JetStream
+          nats-server -p 4222 -js > /tmp/nats-server.log 2>&1 &
+          wait-for-it localhost:4222 --timeout=15
+        start: wadm --nats-server nats://127.0.0.1:4222 --api-prefix wadm
+        timeout: 30
+        expected_output: "event: connected"
+        error_strings: ""

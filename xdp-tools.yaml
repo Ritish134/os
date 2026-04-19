@@ -1,12 +1,18 @@
 package:
   name: xdp-tools
-  version: "1.5.8"
-  epoch: 0
+  version: "1.6.3"
+  epoch: 1 # go/wolfi-rsc/xdp-tools
   description: Utilities and example programs for use with XDP
   copyright:
     - license: GPL-2.0-only
     - license: LGPL-2.1-or-later
     - license: BSD-2-Clause
+  resources:
+    cpu: "1"
+    memory: 5Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 environment:
   contents:
@@ -14,7 +20,7 @@ environment:
       - bpftool
       - build-base
       - busybox
-      - clang
+      - clang-${{vars.clang-version}}
       - emacs
       - libbpf-dev
       - libelf
@@ -24,6 +30,10 @@ environment:
       - util-linux-dev
       - zlib-dev
   environment:
+    # Disable maybe-uninitialized warning for tv_sec/tv_usec in lib/util/xdpsock.c
+    # This file was added in v1.6.0 as part of new AF_XDP benchmarking support.
+    # GCC 15 correctly detects these can be uninitialized when timestamp is disabled.
+    CFLAGS: -Wno-error=maybe-uninitialized
     PRODUCTION: 1
     DYNAMIC_LIBXDP: 1
     FORCE_SYSTEM_LIBBPF: 1
@@ -36,7 +46,7 @@ pipeline:
     with:
       repository: https://github.com/xdp-project/xdp-tools
       tag: v${{package.version}}
-      expected-commit: ef5e0999229e5ce830000329d42456a68f7b2b56
+      expected-commit: 8fbad9f0af621a22aa87ff2520b3735915b1f0fd
 
   - uses: autoconf/configure
 
@@ -64,6 +74,19 @@ subpackages:
       - runs: |
           mkdir -p ${{targets.contextdir}}/usr/share
           mv ${{targets.destdir}}/usr/local/share/xdp-tools/ ${{targets.contextdir}}/usr/share/xdp-tools/
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
+        - uses: test/tw/shell-syntax-check
+          with:
+            files: |
+              /usr/share/xdp-tools/run_tests.sh
+              /usr/share/xdp-tools/setup-netns-env.sh
+              /usr/share/xdp-tools/test_runner.sh
+        - uses: test/tw/help-check
+          with:
+            bins: /usr/share/xdp-tools/test-tool
+            help-flag: help
 
   - name: xdp-tools-dev
     pipeline:
@@ -92,7 +115,7 @@ subpackages:
 
   - name: xdp-tools-doc
     pipeline:
-      - uses: split/manpages
+      - uses: split/alldocs
     description: xdp-tools manpages
     test:
       pipeline:
@@ -108,12 +131,17 @@ update:
 test:
   pipeline:
     - uses: test/tw/ldd-check
-    - runs: |
-        set -e
-        xdp-filter help 2>&1 | grep "Usage"
-        xdp-loader help 2>&1 | grep "Usage"
-        xdpdump help 2>&1 | grep "Usage"
-        xdp-trafficgen help 2>&1 | grep "Usage"
-        xdp-bench help 2>&1 | grep "Usage"
-        xdp-monitor help 2>&1 | grep "Usage"
-        xdp-forward help 2>&1 | grep "Usage"
+    - uses: test/tw/help-check
+      with:
+        bins: |
+          xdp-filter
+          xdp-loader
+          xdpdump
+          xdp-trafficgen
+          xdp-bench
+          xdp-monitor
+          xdp-forward
+        help-flag: help
+
+vars:
+  clang-version: 22

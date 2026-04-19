@@ -2,12 +2,15 @@
 package:
   name: py3-annotated-types
   version: 0.7.0
-  epoch: 5
+  epoch: 7 # go/wolfi-rsc/py3-annotated-types
   description: Reusable constraint types to use with typing.Annotated
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 7Gi
 
 vars:
   pypi-package: annotated-types
@@ -63,6 +66,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

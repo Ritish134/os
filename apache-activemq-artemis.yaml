@@ -1,20 +1,19 @@
 package:
   name: apache-activemq-artemis
-  version: "2.44.0"
-  epoch: 2 # GHSA-vc5p-v9hr-52mj
+  version: "2.53.0"
+  epoch: 4 # GHSA-pwqr-wmgm-9rr8
   description: ActiveMQ Artemis is the next generation message broker from Apache ActiveMQ.
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
-      - bash
-      - coreutils
-      - dash-binsh
       - glibc-locale-en
       - libaio
       - openjdk-${{vars.java-runtime-version}}-default-jvm
       - openssl
-      - procps
+  resources:
+    cpu: "4"
+    memory: 13Gi
 
 environment:
   contents:
@@ -40,19 +39,29 @@ pipeline:
     with:
       repository: https://github.com/apache/activemq-artemis
       tag: ${{package.version}}
-      expected-commit: 437105493d75b6156ba7bb1f77bae93de2182e30
+      expected-commit: 21e513e7d72fa568086aa251461f8ec59f593df4
 
   - uses: maven/pombump
 
   - runs: |
       rm pombump-deps.yaml pombump-properties.yaml
       mvn -Prelease package -DskipTests -Drat.excludesFile=rat-exclusions.txt
-      mkdir -p "${{targets.contextdir}}"/opt/activemq-artemis
-      cp -r artemis-distribution/target/apache-artemis-${{package.version}}-bin/apache-artemis-${{package.version}}/* "${{targets.contextdir}}"/opt/activemq-artemis/
+      mkdir -p "${{targets.contextdir}}"/opt/artemis
+      cp -r artemis-distribution/target/apache-artemis-${{package.version}}-bin/apache-artemis-${{package.version}}/* "${{targets.contextdir}}"/opt/artemis/
 
 subpackages:
   - name: "${{package.name}}-compat"
     description: "Compatibility package to place binaries and symlinks in location expected by the container"
+    test:
+      environment:
+        contents:
+          packages:
+            # -compat packages can be satisfied by multiple source packages; install here for test only, not as a runtime dep
+            - ${{package.name}}
+      pipeline:
+        - uses: test/tw/symlink-check
+          with:
+            allow-absolute: true
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}
@@ -74,18 +83,33 @@ test:
       packages:
         - git
         - maven
+        - bash
+        - coreutils
+        - dash-binsh
+        - procps
         - openjdk-${{vars.java-runtime-version}}-default-jdk
   pipeline:
     - uses: test/tw/ldd-check
       with:
         packages: apache-activemq-artemis
+    - name: "Verify essential binaries exist"
+      runs: |
+        test -f /opt/artemis/lib/artemis-boot.jar
+    - name: "Verify Java can load Artemis boot class"
+      runs: |
+        set -euo pipefail
+        mkdir -p /var/lib/artemis-instance/tmp
+        java -cp /opt/artemis/lib/artemis-boot.jar \
+          -Dartemis.home=/opt/artemis \
+          -Djava.io.tmpdir=/var/lib/artemis-instance/tmp \
+          org.apache.activemq.artemis.boot.Artemis help | grep -F "Usage: artemis"
     - name: "Setup activemq-artemis broker and start service"
       runs: |
-        mkdir /var/lib/artemis-instance
+        mkdir -p /var/lib/artemis-instance
         export BROKER_HOME=/var/lib/
         export CONFIG_PATH=$BROKER_HOME/etc
         cd /var/lib/artemis-instance
-        /opt/activemq-artemis/bin/artemis create --user artemis --password artemis --allow-anonymous .
+        /opt/artemis/bin/artemis create --user artemis --password artemis --allow-anonymous .
         /var/lib/artemis-instance/bin/artemis-service start
     - name: "Clone official apache activemq-artemis examples"
       runs: |
@@ -94,8 +118,8 @@ test:
       runs: |
         cd activemq-artemis-examples/examples/features/standard/queue
         mvn -PnoServer verify > test_output.txt
-        if grep -q "Sent message: This is a text message" "test_output.txt" &&\
-            grep -q "Received message: This is a text message" "test_output.txt"; then
+        if grep -F "Sent message: This is a text message" "test_output.txt" &&\
+            grep -F "Received message: This is a text message" "test_output.txt"; then
           echo "Successfully wrote to and read from activemq-artemis queue."
           exit 0
         else

@@ -1,10 +1,13 @@
 package:
   name: kserve-modelmesh-serving
   version: 0.12.0
-  epoch: 18 # CVE-2025-61729
+  epoch: 27 # CVE-2026-32280
   description: ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "5"
+    memory: 10Gi
 
 pipeline:
   - uses: git-checkout
@@ -17,13 +20,15 @@ pipeline:
     with:
       deps: |-
         golang.org/x/oauth2@v0.27.0
-        golang.org/x/net@v0.38.0
-        golang.org/x/crypto@v0.45.0
+        golang.org/x/net@v0.48.0
+        google.golang.org/api@v0.155.0
+        google.golang.org/grpc@v1.79.3
 
   - uses: go/build
     with:
       packages: .
       output: manager
+      go-package: go-1.25
 
   - name: Copy configs
     # Binary assumes path is populated relative to the workdir. In the upstream image this is /.
@@ -41,7 +46,7 @@ subpackages:
           # Symlink the binary from /usr/bin to /
           # See https://github.com/kserve/modelmesh-serving/blob/f8cc7aa73f6a9360d7635ca5e5c3461d0c60b392/config/manager/manager.yaml#L44
           mkdir -p ${{targets.subpkgdir}}
-          ln -sf /usr/bin/manager ${{targets.subpkgdir}}/manager
+          ln -sf ./usr/bin/manager ${{targets.subpkgdir}}/manager
     # test added by a robot (compat)
     test:
       pipeline:
@@ -59,6 +64,7 @@ test:
         - openssl
         - jq
   pipeline:
+    - uses: test/tw/ldd-check
     - uses: test/kwok/cluster
     - name: Wait for nodes
       runs: kubectl wait --for=condition=Ready nodes --all
@@ -93,6 +99,7 @@ test:
     # Binary assumes mTLS certs are mounted locally.
     - name: Download mTLS certs
       runs: |
+        set -euo pipefail
         certdir="/tmp/k8s-webhook-server/serving-certs"
         mkdir -p "${certdir}"
         kubectl get secrets modelmesh-webhook-server-cert -o jsonpath='{.data.tls\.crt}' | base64 -d > ${certdir}/tls.crt
@@ -109,3 +116,8 @@ update:
   github:
     identifier: kserve/modelmesh-serving
     strip-prefix: v
+
+environment:
+  contents:
+    packages:
+      - go-1.25

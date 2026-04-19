@@ -1,10 +1,16 @@
 package:
   name: victoriametrics-cluster
-  version: "1.133.0"
-  epoch: 0
+  version: "1.140.0"
+  epoch: 0 # CVE-2026-32280
   description: VictoriaMetrics is a fast, cost-effective, and scalable monitoring solution and time series database designed for high performance and reliability. It supports both single-server and clustered installations, providing flexibility for various deployment needs, and integrates well with tools like Grafana for data visualization.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  test-resources:
+    cpu: "1"
+    memory: 1Gi
 
 data:
   - name: victoria-packages
@@ -15,10 +21,17 @@ data:
       vminsert: accepts the ingested data and spreads it among vmstorage nodes according to consistent hashing over metric name and all its labels
       vmselect: performs incoming queries by fetching the needed data from all the configured vmstorage nodes
 
+environment:
+  environment:
+    GOTOOLCHAIN: local+auto
+  contents:
+    packages:
+      - go-1.25
+
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: cfca33124ecd9c6362f704a87d7129a38c55f6e2
+      expected-commit: 0d488a10e9802763a204017fd51326c2f64535fb
       repository: https://github.com/VictoriaMetrics/VictoriaMetrics
       tag: v${{package.version}}-cluster
 
@@ -38,12 +51,43 @@ subpackages:
         with:
           packages: ./app/${{range.key}}
           output: ${{range.key}}
-          ldflags: -X github.com/VictoriaMetrics/VictoriaMetrics/lib/buildinfo.Version=${{range.key}}-$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" "+%Y-%m-%dT%H:%M:%SZ")-$(git rev-parse HEAD)
+          go-package: go-1.25
+          ldflags: -X github.com/VictoriaMetrics/VictoriaMetrics/lib/buildinfo.Version=${{range.key}}-${{package.version}}-$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" "+%Y-%m-%dT%H:%M:%SZ")-$(git rev-parse HEAD)
     test:
+      environment:
+        contents:
+          packages:
+            - curl
       pipeline:
-        - name: Test the ${{range.key}} binary
-          runs: |
-            ${{range.key}} -version
+        - uses: test/tw/ver-check
+          with:
+            bins: ${{range.key}}
+            version: ${{package.version}}
+        - name: Test ${{range.key}} daemon starts and serves HTTP
+          uses: test/daemon-check-output
+          with:
+            setup: |
+              mkdir -p /tmp/vmstorage-data
+              if [ "${{range.key}}" = "vmstorage" ]; then
+                echo "${{range.key}} -httpListenAddr=:18080 -storageDataPath=/tmp/vmstorage-data" > /tmp/start-vm.sh
+              elif [ "${{range.key}}" = "vminsert" ]; then
+                echo "${{range.key}} -httpListenAddr=:18080 -storageNode=localhost:8400" > /tmp/start-vm.sh
+              elif [ "${{range.key}}" = "vmselect" ]; then
+                echo "${{range.key}} -httpListenAddr=:18080 -storageNode=localhost:8401" > /tmp/start-vm.sh
+              elif [ "${{range.key}}" = "vmagent" ]; then
+                echo "${{range.key}} -httpListenAddr=:18080 -remoteWrite.url=http://localhost:9999/api/v1/write" > /tmp/start-vm.sh
+              elif [ "${{range.key}}" = "vmalert" ]; then
+                echo "${{range.key}} -httpListenAddr=:18080 -datasource.url=http://localhost:9999" > /tmp/start-vm.sh
+              else
+                echo "${{range.key}} -httpListenAddr=:18080" > /tmp/start-vm.sh
+              fi
+              chmod +x /tmp/start-vm.sh
+            start: sh /tmp/start-vm.sh
+            timeout: 30
+            expected_output: "started server at http://0.0.0.0:18080/"
+            post: |
+              set -euo pipefail
+              curl -sf http://localhost:18080/metrics | grep -F "go_goroutines"
 
   - range: victoria-packages
     name: "victoriametrics-${{range.key}}-cluster-compat"
@@ -51,7 +95,14 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}/
-          ln -sf /usr/bin/${{range.key}} ${{targets.contextdir}}/${{range.key}}
+          ln -sf usr/bin/${{range.key}} ${{targets.contextdir}}/${{range.key}}
+    test:
+      environment:
+        contents:
+          packages:
+            - victoriametrics-${{range.key}}-cluster
+      pipeline:
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true

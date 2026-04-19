@@ -1,7 +1,7 @@
 package:
   name: libexif
-  version: 0.6.25
-  epoch: 3
+  version: "0.6.26"
+  epoch: 0
   description: library to parse an EXIF file and read the data from those tags
   copyright:
     - license: LGPL-2.1
@@ -9,19 +9,20 @@ package:
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
       - ca-certificates-bundle
       - doxygen
+      - gettext-dev
       - graphviz
+      - libtool
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 7c9eba99aed3e6594d8c3e85861f1c6aaf450c218621528bc989d3b3e7a26307
-      uri: https://github.com/libexif/libexif/releases/download/v${{package.version}}/libexif-${{package.version}}.tar.bz2
+      repository: https://github.com/libexif/libexif
+      tag: v${{package.version}}
+      expected-commit: b2edc5a8adf4d1b79ce9413a9c9d8f3ab871c082
 
   - uses: autoconf/configure
     with:
@@ -39,34 +40,42 @@ pipeline:
   - uses: strip
 
 subpackages:
+  - name: libexif-libs
+    description: libexif shared libraries
+    pipeline:
+      - uses: split/lib
+    test:
+      pipeline:
+        - uses: test/tw/ldd-check
+
   - name: libexif-static
     description: libexif static library
     pipeline:
       - uses: split/static
     test:
       pipeline:
-        - runs: |
-            find /usr/lib/ -name "*.a" -type f | grep -q .
+        - uses: test/tw/staticpackage
 
   - name: libexif-dev
     pipeline:
       - uses: split/dev
     description: libexif dev
+    dependencies:
+      runtime:
+        - libexif-libs
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
   - name: libexif-doc
     description: libexif docs
     pipeline:
-      - name: "relocate docs"
-        runs: |
-          mkdir -p "${{targets.subpkgdir}}"/usr/share
-          mv "${{targets.destdir}}"/usr/share/doc "${{targets.subpkgdir}}"/usr/share
+      - uses: split/alldocs
     test:
       pipeline:
-        - uses: test/docs
+        - uses: test/tw/docs
 
 update:
   enabled: true
@@ -80,6 +89,34 @@ update:
     - ^cvs-migration$
 
 test:
+  environment:
+    contents:
+      packages:
+        - libexif-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
     - uses: test/no-docs
+    - name: Test library compilation and linking
+      runs: |
+        set -euo pipefail
+
+        tee test.c <<'EOF'
+        #include <libexif/exif-data.h>
+        #include <stdio.h>
+
+        int main() {
+            ExifData *data = exif_data_new();
+            if (!data) {
+                fprintf(stderr, "FAIL: exif_data_new() returned NULL\n");
+                return 1;
+            }
+            exif_data_unref(data);
+            printf("SUCCESS: libexif compile and link test passed\n");
+            return 0;
+        }
+        EOF
+
+        gcc $(pkg-config --cflags libexif) test.c -o test $(pkg-config --libs libexif)
+        ./test

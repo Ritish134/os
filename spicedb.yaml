@@ -1,22 +1,42 @@
 package:
   name: spicedb
-  version: "1.48.0"
-  epoch: 0 # CVE-2025-61729
+  version: "1.51.1"
+  epoch: 0 # GHSA-w8rr-5gcm-pp58
   description: Open Source, Google Zanzibar-inspired fine-grained permissions database
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "5"
+    memory: 9Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/authzed/spicedb
       tag: v${{package.version}}
-      expected-commit: 12293b40ac54395bf431e279dd248a0364f12cb2
+      expected-commit: add1e28b8701f9fa14c16db9181c0beab5f7109a
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+      modroot: magefiles
+
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.43.0
 
   - uses: go/build
     with:
       packages: ./cmd/spicedb
       output: spicedb
+      go-package: go-1.25
       ldflags: -X github.com/jzelinskie/cobrautil/v2.Version=v${{package.version}}
 
 subpackages:
@@ -28,11 +48,10 @@ subpackages:
     pipeline:
       - runs: |
           mkdir -p ${{targets.subpkgdir}}/usr/local/bin
-          ln -sf /usr/bin/spicedb ${{targets.subpkgdir}}/usr/local/bin/spicedb
+          ln -sf ../../bin/spicedb ${{targets.subpkgdir}}/usr/local/bin/spicedb
     test:
       pipeline:
-        - runs: |
-            test "$(readlink /usr/local/bin/spicedb)" = "/usr/bin/spicedb"
+        - uses: test/tw/symlink-check
 
 update:
   enabled: true
@@ -59,9 +78,10 @@ test:
       HTTP_PORT: "8443"
       METRICS_PORT: "9090"
   pipeline:
+    - uses: test/tw/ldd-check
     - name: Check spicedb version and help
       runs: |
-        set -o pipefail
+        set -euo pipefail
         spicedb version | grep -F "v${{package.version}}"
         spicedb --help | grep -F "database that stores"
         spicedb serve --help 2>&1 | grep -F "serve"
@@ -100,7 +120,7 @@ test:
           grpcurl -plaintext "localhost:${GRPC_PORT}" list 2>&1 | grep -F -q "authzed.api.v1.PermissionsService"
     - name: Test with PostgreSQL datastore
       runs: |
-        set -o pipefail
+        set -euo pipefail
 
         # Create temporary directory for PostgreSQL data
         PGDATA_DIR=$(mktemp -d)
@@ -135,7 +155,12 @@ test:
           http server started serving
         post: |
           wait-for-it "localhost:${HTTP_PORT}" -t 30
-          curl -fsSL "http://localhost:${HTTP_PORT}/health"
+          curl -fsSL "http://localhost:${HTTP_PORT}/healthz"
 
           wait-for-it "localhost:${METRICS_PORT}" -t 30
           curl -fsSL "http://localhost:${METRICS_PORT}/metrics" | grep -F -q "go_gc_duration_seconds"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

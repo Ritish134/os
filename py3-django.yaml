@@ -1,7 +1,7 @@
 package:
   name: py3-django
-  version: "6.0.1"
-  epoch: 0
+  version: "6.0.4"
+  epoch: 1
   description: A high-level Python Web framework that encourages rapid development and clean, pragmatic design.
   copyright:
     - license: BSD-3-Clause
@@ -26,7 +26,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 85eb963c5297fb285aecf4a90c97141a1b9c5bee
+      expected-commit: 141e791f48592011b0f38fb30d44291e3ce74ee0
       repository: https://github.com/django/django
       tag: ${{package.version}}
 
@@ -50,6 +50,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

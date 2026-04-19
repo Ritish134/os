@@ -1,13 +1,16 @@
 package:
   name: kiali
-  version: "2.20.0"
-  epoch: 0 # CVE-2025-61729
+  version: "2.24.0"
+  epoch: 3 # GHSA-pc3f-x583-g7j2
   description: The Console for Istio Service Mesh
   copyright:
     - license: Apache-2.0
   dependencies:
     runtime:
       - ca-certificates
+  resources:
+    cpu: "5"
+    memory: 13Gi
 
 environment:
   contents:
@@ -15,7 +18,8 @@ environment:
       - automake
       - busybox
       - ca-certificates-bundle
-      - go
+      - corepack
+      - go-1.25
       - nodejs
       - npm
       - tree
@@ -26,9 +30,19 @@ pipeline:
     with:
       repository: https://github.com/kiali/kiali
       tag: v${{package.version}}
-      expected-commit: ba0870c73bbd09efb3efda99343b5800a2fa0aa7
+      expected-commit: 52141136c5ebf53bd9f9fee4a356e80e662f42d9
 
-  - runs: make clean-all build-ui
+  - uses: go/bump
+    with:
+      deps: |-
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.43.0
+        github.com/moby/spdystream@v0.5.1
+
+  - runs: |
+      corepack enable
+      make clean-all build-ui
 
   - uses: go/build # Builds to /opt/kiali/kiali
     with:
@@ -45,10 +59,9 @@ pipeline:
 
 test:
   pipeline:
-    - name: Verify Kiali API
-      runs: |
-        # Check if binary runs
-        /opt/kiali/kiali --help
+    - uses: test/tw/ldd-check
+    - name: Verify kiali help output
+      runs: /opt/kiali/kiali --help
 
 update:
   enabled: true

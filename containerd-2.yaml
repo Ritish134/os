@@ -1,7 +1,7 @@
 package:
   name: containerd-2
-  version: "2.2.1"
-  epoch: 0 # GHSA-jv3w-x3r3-g6rm
+  version: "2.2.3"
+  epoch: 0 # GHSA-w8rr-5gcm-pp58
   description: An open and reliable container runtime
   copyright:
     - license: Apache-2.0
@@ -14,6 +14,9 @@ package:
       - containerd-stress-2
       - ctr
       - runc
+  resources:
+    cpu: "4"
+    memory: 7Gi
 
 environment:
   contents:
@@ -27,13 +30,23 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: dea7da592f5d1d2b7755e3a161be07f43fad8f75
+      expected-commit: 77c84241c7cbdd9b4eca2591793e3d4f4317c590
       repository: https://github.com/containerd/containerd
       tag: v${{package.version}}
 
-  - uses: go/bump
+  - uses: bump
     with:
-      deps: |-
+      language: go
+      packages: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
+        google.golang.org/grpc@v1.79.3
+        github.com/go-jose/go-jose/v4@v4.1.4
+        go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.43.0
+
+  - uses: bump
+    with:
+      language: go
+      packages: |-
         golang.org/x/net@v0.39.0
       modroot: api
 
@@ -117,12 +130,15 @@ test:
         - containerd-shim-runc-v2-2
         - containerd-stress-2
   pipeline:
-    - name: Basic version checks
-      runs: |
-        containerd --version
-        ctr --version
-        containerd-shim-runc-v2 -v
-        containerd-stress --help
+    - uses: test/tw/ver-check
+      with:
+        bins: |
+          containerd
+          ctr
+          containerd-shim-runc-v2
+    - uses: test/tw/help-check
+      with:
+        bins: containerd-stress
     - name: Verify default config generation
       runs: |
         # Test config file was generated during package install
@@ -158,6 +174,7 @@ test:
           failed to start
     - name: Test ctr operations with daemon
       runs: |
+        set -euo pipefail
         # Create a minimal loopback CNI config to satisfy the CRI plugin
         mkdir -p /etc/cni/net.d
         cat > /etc/cni/net.d/99-loopback.conf << 'EOF'
@@ -187,11 +204,11 @@ test:
         echo "Testing namespace operations..."
         ctr namespace list | grep -E "(default|NAME)"
         ctr namespace create test-namespace
-        ctr namespace list | grep test-namespace
+        ctr namespace list | grep -F test-namespace
         ctr namespace remove test-namespace
 
         # Verify removal
-        if ctr namespace list | grep -q test-namespace; then
+        if ctr namespace list | grep -F test-namespace; then
           echo "Failed to remove test namespace"
           kill $CONTAINERD_PID
           exit 1
@@ -200,16 +217,16 @@ test:
         # Test plugin list
         echo "Testing plugin operations..."
         ctr plugin list | grep -E "(io.containerd|TYPE)"
-        ctr plugin list | grep "io.containerd.content"
-        ctr plugin list | grep "io.containerd.snapshotter"
-        ctr plugin list | grep "io.containerd.runtime"
-        ctr plugin list | grep "io.containerd.service"
+        ctr plugin list | grep -F "io.containerd.content"
+        ctr plugin list | grep -F "io.containerd.snapshotter"
+        ctr plugin list | grep -F "io.containerd.runtime"
+        ctr plugin list | grep -F "io.containerd.service"
 
         # Test version negotiation
         echo "Testing version negotiation..."
         ctr version
-        ctr version | grep "Client"
-        ctr version | grep "Server"
+        ctr version | grep -F "Client"
+        ctr version | grep -F "Server"
 
         # Test content/image commands
         echo "Testing content and image commands..."
@@ -222,25 +239,30 @@ test:
         ctr containers list
         ctr tasks list
 
-        # Test event monitoring
+        # Test event monitoring — timeout is expected (exit 124); any other failure is an error.
+        # Use --kill-after to send SIGKILL if ctr events ignores SIGTERM (prevents hanging).
         echo "Testing event functionality..."
-        timeout 2 ctr events || true
+        timeout --kill-after=5 2 ctr events || rc=$?
+        [ "${rc:-0}" -eq 0 ] || [ "${rc:-0}" -eq 124 ]
 
-        # Cleanup
+        # Cleanup: send SIGTERM and wait up to 10s, then SIGKILL
         kill $CONTAINERD_PID
+        for i in $(seq 1 10); do
+          sleep 1
+          if ! kill -0 $CONTAINERD_PID; then
+            break
+          fi
+        done
+        if kill -0 $CONTAINERD_PID; then
+          kill -9 $CONTAINERD_PID
+        fi
         wait $CONTAINERD_PID
     - name: Test ctr command completeness
-      runs: |
-        # Test main command groups exist
-        ctr --help | grep "containers"
-        ctr --help | grep "images"
-        ctr --help | grep "namespaces"
-        ctr --help | grep "tasks"
-        ctr --help | grep "snapshots"
-        ctr --help | grep "content"
-        ctr --help | grep "plugins"
-        ctr --help | grep "events"
+      uses: test/tw/help-check
+      with:
+        bins: ctr
+        expect-contains: "containers images namespaces tasks snapshots content plugins events"
     - name: Test containerd-stress
-      runs: |
-        # Test that containerd-stress help works
-        containerd-stress --help
+      uses: test/tw/help-check
+      with:
+        bins: containerd-stress

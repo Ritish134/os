@@ -1,7 +1,7 @@
 package:
   name: velero-plugin-for-aws
-  version: "1.13.1"
-  epoch: 1 # CVE-2025-61725
+  version: "1.14.0"
+  epoch: 4 # GHSA-xmrv-pmrh-hhx2
   description: Plugins to support Velero on AWS
   copyright:
     - license: Apache-2.0
@@ -9,13 +9,22 @@ package:
     runtime:
       - merged-bin
       - wolfi-baselayout
+  resources:
+    cpu: "7"
+    memory: 14Gi
 
 pipeline:
   - uses: git-checkout
     with:
       tag: v${{package.version}}
-      expected-commit: f9526c86b02b8651c0a71eb43bc159a137eced81
+      expected-commit: 2a52b1296d4e5c6deebc444430f795f960a7bd1e
       repository: https://github.com/vmware-tanzu/velero-plugin-for-aws
+
+  - uses: go/bump
+    with:
+      deps: |-
+        google.golang.org/grpc@v1.79.3
+        github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
 
   - uses: go/build
     with:
@@ -45,6 +54,11 @@ subpackages:
       runtime:
         - merged-bin
         - wolfi-baselayout
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
+          with:
+            files: /plugins/velero-plugin-for-aws
 
 update:
   enabled: true
@@ -64,3 +78,8 @@ test:
         ls /target/velero-plugin-for-aws
         set +e
         /target/velero-plugin-for-aws -h
+
+environment:
+  contents:
+    packages:
+      - go-1.25

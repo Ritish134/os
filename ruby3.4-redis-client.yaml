@@ -1,14 +1,17 @@
 # Generated from https://github.com/redis-rb/redis-client
 package:
   name: ruby3.4-redis-client
-  version: "0.26.3"
-  epoch: 0
+  version: "0.28.0"
+  epoch: 1 # go/wolfi-rsc/ruby3.4-redis-client
   description: Simple low-level client for Redis 6+
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - ruby${{vars.rubyMM}}-connection_pool
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -23,7 +26,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: e9d40c1dfe0c644f9a9a0588cf25c39f2702400c
+      expected-commit: f4808dec166f53ffe25939c30fb53123bff275bb
       repository: https://github.com/redis-rb/redis-client
       tag: v${{package.version}}
 
@@ -60,8 +63,9 @@ test:
       packages:
         - ruby${{vars.rubyMM}}-connection_pool
   pipeline:
-    - name: Basic require test
-      runs: ruby -e "require 'redis-client'; puts 'Redis client loaded successfully!'"
+    - uses: test/tw/gem-check
+      with:
+        require: redis-client
     - name: Test configuration and url parsing
       runs: |
         ruby <<-EOF

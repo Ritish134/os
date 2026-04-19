@@ -1,7 +1,7 @@
 package:
   name: py3-agate
-  version: "1.14.0"
-  epoch: 0
+  version: "1.14.2"
+  epoch: 1
   description: A data analysis library that is optimized for humans instead of machines.
   copyright:
     - license: MIT
@@ -28,7 +28,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: b45e269a4cbb6db3cd85768bcdea208575d6a6bf
+      expected-commit: eab4f62e6cf1c9a0d68c4c3c9faace91355f49da
       repository: https://github.com/wireservice/agate
       tag: ${{package.version}}
 
@@ -54,6 +54,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

@@ -1,7 +1,7 @@
 package:
   name: rspamd
-  version: "3.14.2"
-  epoch: 0
+  version: "4.0.1"
+  epoch: 0 # go/wolfi-rsc/rspamd
   description: "Rapid spam filtering system"
   copyright:
     - license: Apache-2.0
@@ -19,6 +19,9 @@ package:
       - pcre2
       - sqlite-libs
       - zlib
+  resources:
+    cpu: "5"
+    memory: 7Gi
 
 environment:
   contents:
@@ -40,7 +43,7 @@ pipeline:
     with:
       repository: https://github.com/rspamd/rspamd
       tag: ${{package.version}}
-      expected-commit: e6f401afb3c5dc4b72999d3a7a4d0923b43880fa
+      expected-commit: 87003334ecfa39111f27db08e49ae9e83616637e
 
   - uses: cmake/configure
     with:

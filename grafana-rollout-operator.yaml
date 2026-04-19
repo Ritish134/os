@@ -1,7 +1,7 @@
 package:
   name: grafana-rollout-operator
-  version: "0.33.0"
-  epoch: 0 # CVE-2025-61729
+  version: "0.36.1"
+  epoch: 3 # CVE-2026-32280
   description: Kubernetes Rollout Operator
   copyright:
     - license: Apache-2.0
@@ -12,18 +12,32 @@ package:
     runtime:
       - merged-bin
       - wolfi-baselayout
+  resources:
+    cpu: "4"
+    memory: 8Gi
+
+environment:
+  contents:
+    packages:
+      - go-1.26
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/grafana/rollout-operator
       tag: v${{package.version}}
-      expected-commit: 6401f0ade9131590ca6352cacce5ac0fc59228e5
+      expected-commit: 2afe062893496f0554b4764bbe1638f8019832fb
+
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
   - uses: go/build
     with:
       packages: ./cmd/rollout-operator
       output: rollout-operator
+      go-package: go-1.26
 
 test:
   environment:
@@ -34,8 +48,10 @@ test:
       KUBERNETES_SERVICE_HOST: "127.0.0.1"
       KUBERNETES_SERVICE_PORT: "32764"
   pipeline:
-    - runs: |
-        rollout-operator --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/help-check
+      with:
+        bins: rollout-operator
     - uses: test/kwok/cluster
       with:
         serviceaccount: true

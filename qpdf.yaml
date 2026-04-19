@@ -1,23 +1,24 @@
 package:
   name: qpdf
-  version: "12.2.0"
-  epoch: 1
+  version: "12.3.2"
+  epoch: 5 # go/wolfi-rsc/qpdf
   description: Command-line tools and library for transforming PDF files
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "4"
+    memory: 4Gi
 
 environment:
   contents:
     packages:
-      - autoconf
-      - automake
       - build-base
       - busybox
-      - ca-certificates-bundle
       - cmake
-      - gnutls-dev
       - libjpeg-turbo-dev
       - openssl-dev
+      - openssl-provider-legacy # needed for RC4 tests
+      - perl # needed for tests
       - samurai
       - zlib-dev
 
@@ -26,22 +27,29 @@ pipeline:
     with:
       repository: https://github.com/qpdf/qpdf
       tag: v${{package.version}}
-      expected-commit: 856d32c610334855d30e96d25eb5f9636fb62f08
+      expected-commit: a898bb3a7289d1d05789d6d3f0d5dd534943a8da
 
-  - name: Build
-    runs: |
-      cmake -B build -G Ninja \
-      	-DCMAKE_INSTALL_PREFIX=/usr \
-      	-DCMAKE_INSTALL_LIBDIR=/usr/lib \
-      	-DCMAKE_BUILD_TYPE=MinSizeRel \
-      	-DBUILD_STATIC_LIBS=OFF \
-      	-DBUILD_DOC_PDF=OFF \
-      	-DBUILD_DOC_HTML=OFF \
-      	-DINSTALL_EXAMPLES=OFF
-      cmake --build build
+  - uses: patch
+    with:
+      patches: fix-pic-static-lib.patch
 
-  - name: Package
-    runs: DESTDIR="${{targets.destdir}}" cmake --install build
+  - uses: cmake/configure
+    with:
+      opts: |
+        -DBUILD_STATIC_LIBS=ON \
+        -DBUILD_DOC_PDF=OFF \
+        -DBUILD_DOC_HTML=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DREQUIRE_CRYPTO_OPENSSL=ON \
+        -DINSTALL_EXAMPLES=OFF
+
+  - uses: cmake/build
+
+  - uses: cmake/build
+    with:
+      opts: --target test
+
+  - uses: cmake/install
 
   - uses: strip
 
@@ -76,6 +84,19 @@ subpackages:
       pipeline:
         - runs: |
             fix-qdf --version
+
+  - name: qpdf-static
+    description: "Statically linked qpdf"
+    dependencies:
+      runtime:
+        - ${{package.name}}-dev=${{package.full-version}}
+    pipeline:
+      - uses: split/static
+        with:
+          package: "qpdf-dev"
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
 
 test:
   pipeline:

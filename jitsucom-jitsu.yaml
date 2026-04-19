@@ -1,7 +1,7 @@
 package:
   name: jitsucom-jitsu
   version: "2.11.0"
-  epoch: 11 # GHSA-mwv6-3258-q52c
+  epoch: 21
   description: Jitsu is an open-source Segment alternative. Fully-scriptable data ingestion engine for modern data teams. Set-up a real-time data pipeline in minutes, not days
   copyright:
     - license: MIT
@@ -13,29 +13,38 @@ package:
       - curl
       - libvips
       - netcat-openbsd
-      - nodejs-18
+      - nodejs-20
       - openssl
       - procps
+  resources:
+    cpu: "6"
+    memory: 21Gi
 
 environment:
   contents:
     packages:
+      - brotli-dev
       - build-base
       - busybox
+      - c-ares-dev
       - ca-certificates-bundle
       - esbuild
       - gcc-12
       - gcc-12-default
+      - icu-dev
       - jq
+      - libuv-dev
       - make
+      - nghttp2-dev
       - node-gyp
-      - nodejs-18
+      - nodejs-20
       - npm
-      - openssl
+      - openssl-dev
       - pnpm
       - posix-libc-utils
       - py3-setuptools
       - python3
+      - zlib-dev
 
 pipeline:
   - uses: git-checkout
@@ -52,7 +61,7 @@ pipeline:
     runs: |
       jq '.dependencies."js-yaml" = "^4.1.1"' webapps/console/package.json > temp.json && mv temp.json webapps/console/package.json
       # Remediate GHSA-w37m-7fhw-fmv9 and GHSA-mwv6-3258-q52c
-      jq '.dependencies."next" = "^15.5.8"' webapps/console/package.json > temp.json && mv temp.json webapps/console/package.json
+      jq '.dependencies."next" = "^15.5.14"' webapps/console/package.json > temp.json && mv temp.json webapps/console/package.json
 
   - name: "delete leftover source files"
     runs: |
@@ -62,11 +71,14 @@ pipeline:
       rm -f webapps/console/pages/api/admin/migrate.ts
 
   - runs: |
-      # isolated-vm 6.x dropped support for NodeJS 18.x, which jitsucom-jitsu
-      # still requires
       pnpm pkg set pnpm.overrides['isolated-vm']=^5.0.1
       # Remediate GHSA-554w-wpv2-vw27, GHSA-5gfm-wpxj-wjgq, GHSA-65ch-62r8-g69g
       pnpm pkg set pnpm.overrides['node-forge']=^1.3.2
+      # Remediate CVE-2025-13465
+      pnpm pkg set pnpm.overrides['lodash']=^4.17.23
+      pnpm pkg set pnpm.overrides['axios']=1.15.0
+      # Remediate GHSA-fj3w-jwp8-x2g3
+      pnpm pkg set pnpm.overrides['fast-xml-parser']=^5.3.8
       (cd libs/core-functions && npm pkg set overrides['isolated-vm']=^5.0.1)
       sed -i 's/\(isolated-vm.*\)6.0.0/\1^5.0.1/' services/profiles/dist_package.json
       sed -i 's/\(isolated-vm.*\)6.0.0/\1^5.0.1/' services/rotor/dist_package.json
@@ -79,6 +91,9 @@ pipeline:
       (cd webapps/console && npm pkg set dependencies.jsonwebtoken=^9.0.3)
       pnpm pkg set pnpm.overrides['jws']=^4.0.1
 
+      pnpm pkg set pnpm.overrides.undici="^7.24.0"
+      pnpm pkg set pnpm.overrides.nodemailer="^8.0.5"
+
       pnpm install -r --unsafe-perm
       export NEXTJS_STANDALONE_BUILD=1
 
@@ -87,6 +102,13 @@ pipeline:
       (cd $(find node_modules -type d -name zstd-napi -print -quit) && npm run-script build)
 
       pnpm build
+
+  - name: Build isolated-vm native addon for rotor
+    runs: |
+      # The rotor dist npm install does not reliably produce the isolated-vm
+      # native binary. Explicitly rebuild it with the system dev libs available;
+      # binding.gyp outputs the binary directly to out/.
+      cd services/rotor/dist/node_modules/isolated-vm && node-gyp rebuild --release -j max
 
 subpackages:
   - name: ${{package.name}}-console
@@ -150,7 +172,7 @@ subpackages:
         contents:
           packages:
             - busybox
-            - nodejs-18
+            - nodejs-20
       pipeline:
         - name: Verify rotor service files
           runs: |
@@ -160,9 +182,11 @@ subpackages:
 
 update:
   enabled: true
-  github:
-    identifier: jitsucom/jitsu
+  ignore-regex-patterns:
+    - beta
+  git:
     strip-prefix: jitsu2-v
+    tag-filter-prefix: jitsu2-v
 
 test:
   pipeline:

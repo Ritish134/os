@@ -1,36 +1,70 @@
 package:
   name: pipx
-  version: "1.8.0"
-  epoch: 0
+  version: "1.11.1"
+  epoch: 3 # convert to uv venv application package
   description: Install and Run Python Applications in Isolated Environments
   copyright:
     - license: MIT
   dependencies:
     runtime:
       - bash # pipx ensurepath
-      - py${{vars.python-version}}-argcomplete
-      - py${{vars.python-version}}-packaging
-      - py${{vars.python-version}}-platformdirs
-      - py${{vars.python-version}}-userpath
+      - python-${{vars.python-version}}-base
+  options:
+    # Don't resolve libraries installed in virtual environment as providers
+    no-provides: true
+  resources:
+    cpu: "1"
+    memory: 1Gi
+  test-resources:
+    cpu: "2"
+    memory: 3Gi
 
 vars:
-  python-version: 3.13
+  python-version: '3.13'
+  venv-home: '/opt/chainguard/pipx'
 
 environment:
   contents:
     packages:
-      - py${{vars.python-version}}-build-base
-      - py${{vars.python-version}}-hatch-vcs
-      - py${{vars.python-version}}-hatchling
+      - build-base
+      - busybox
+      - ca-certificates-bundle
+      - python-${{vars.python-version}}-dev
+      - uv
+      - wolfi-base
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/pypa/pipx.git
       tag: ${{package.version}}
-      expected-commit: f0076c74571aceaaefe919b2eeb46011075ee5c1
+      expected-commit: 804dce8d0aaed4c430c5d2c1d9e1122275f8adf7
 
-  - uses: py/pip-build-install
+  - uses: auth/uv
+    with:
+      allow-fallback-indexes: true
+
+  - runs: |
+      # Create venv at final install path with explicit python version
+      uv venv "${{vars.venv-home}}" --python python${{vars.python-version}}
+
+      # Install pipx from Libraries
+      uv pip install --no-compile --python "${{vars.venv-home}}/bin/python" \
+        "pipx==${{package.version}}"
+
+      # Remove pip and virtualenv
+      uv pip uninstall pip virtualenv --python "${{vars.venv-home}}/bin/python"
+
+      # Fix uv lock file permissions (created world-writable by uv)
+      chmod 644 "${{vars.venv-home}}/.lock"
+
+      # Install virtual environment to package
+      mkdir -p "${{targets.destdir}}/opt/chainguard"
+      cp -a "${{vars.venv-home}}" "${{targets.destdir}}/opt/chainguard/"
+
+      # Symlink pipx to /usr/bin
+      mkdir -p "${{targets.destdir}}/usr/bin"
+      ln -sf "${{vars.venv-home}}/bin/pipx" "${{targets.destdir}}/usr/bin/pipx"
 
   - uses: strip
 
@@ -41,16 +75,41 @@ update:
 
 test:
   pipeline:
-    - name: Ensure command line works
+    - uses: test/tw/ver-check
+      with:
+        bins: pipx
+        version: ${{package.version}}
+    - uses: test/tw/help-check
+      with:
+        bins: pipx
+    - name: Verify pipx version and Libraries provenance
       runs: |
-        pipx --version | grep ${{package.version}}
-        pipx --help
+        set -euo pipefail
+        INSTALLED=$("${{vars.venv-home}}/bin/python" -c "from importlib.metadata import version; print(version('pipx'))")
+        if [ "$INSTALLED" != "${{package.version}}" ]; then
+          echo "FAIL: Expected pipx==${{package.version}}, got $INSTALLED"
+          exit 1
+        fi
+        echo "PASS: pipx==$INSTALLED"
+        DIST_DIR="$("${{vars.venv-home}}/bin/python" -c "from importlib.metadata import distribution; print(distribution('pipx')._path)")"
+        SBOM="${DIST_DIR}/sboms/sbom.spdx.json"
+        if [ ! -f "$SBOM" ]; then
+          echo "FAIL: No SBOM found — pipx must come from Chainguard Libraries"
+          exit 1
+        fi
+        if grep -q '"Organization: Chainguard, Inc"' "$SBOM"; then
+          echo "PASS: Chainguard Libraries provenance confirmed via SBOM"
+        else
+          echo "FAIL: SBOM exists but not from Chainguard Libraries"
+          exit 1
+        fi
     - name: Ensure package management works
       runs: |
+        set -euo pipefail
         pipx ensurepath
         pipx install flake8
         source ~/.bashrc
-        realpath $(which flake8) | grep pipx
+        realpath $(which flake8) | grep -F pipx
         pipx inject flake8 pylint
         pipx reinstall flake8
         flake8 --help

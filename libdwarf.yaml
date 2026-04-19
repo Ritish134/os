@@ -1,10 +1,16 @@
 package:
   name: libdwarf
-  version: "2.2.0"
-  epoch: 0
+  version: "2.3.1"
+  epoch: 2 # go/wolfi-rsc/libdwarf
   description: Parsing library for DWARF2 and later debugging file format
   copyright:
     - license: LGPL-2.1-only
+  resources:
+    cpu: "2"
+    memory: 4Gi
+  test-resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -25,7 +31,7 @@ pipeline:
     with:
       repository: https://github.com/davea42/libdwarf-code
       tag: v${{package.version}}
-      expected-commit: 2e088b983562860f497b4fd789a3e61524eb857c
+      expected-commit: b5ef10c9df0f494596fd9d31e19048a3ed5f28ba
 
   - name: Configure libdwarf
     uses: meson/configure

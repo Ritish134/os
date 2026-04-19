@@ -1,6 +1,6 @@
 package:
   name: python-3.14
-  version: "3.14.2"
+  version: "3.14.4"
   epoch: 2
   description: "the Python programming language"
   copyright:
@@ -9,6 +9,9 @@ package:
     cpu: 8
     memory: 8Gi
   dependencies:
+    provides:
+      - python3=0
+      - python-3=0
     runtime:
       - ${{package.name}}-base=${{package.full-version}}
 
@@ -19,7 +22,7 @@ environment:
       - busybox
       - bzip2-dev
       - ca-certificates-bundle
-      # This is a year old. Hopefully 3.14.x updates will move this to current.
+      # clang, llvm and python-3.13 are required for the JIT subpackage build
       - clang-${{vars.clang-version}}
       - expat-dev
       - gdbm-dev
@@ -27,14 +30,10 @@ environment:
       - libffi-dev
       - libx11-dev
       - linux-headers
-      # This is a year old. Hopefully 3.14.x updates will move this to current.
       - llvm-${{vars.clang-version}}
       - mpdecimal-dev
       - ncurses-dev
-      - openssl-dev
-      # This is required for the JIT-enabled build. Hopefully 3.14.x updates
-      # will remove this requirement, or it will vanish when the JIT version
-      # becomes the default.
+      - openssl-hardened-dev
       - python-3.13
       - readline-dev
       - sqlite-dev
@@ -89,11 +88,9 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: df793163d5821791d4e7caf88885a2c11a107986
+      expected-commit: 23116f998f6789d8c2fbe5ed5b8146854c8c2a4f
       repository: https://github.com/python/cpython.git
       tag: v${{package.version}}
-      cherry-picks: |
-        3.14/027f21e417b26eed4505ac2db101a4352b7c51a0: [CVE-2025-12084]
 
   - name: Force use of system libraries
     runs: |
@@ -105,22 +102,16 @@ pipeline:
     with:
       patches: gh-118224.patch gh-127301.patch
 
-  - name: Clone patched source for no-GIL build
+  - name: Clone patched source for no-GIL and JIT builds
     runs: |
-      mkdir no-gil
-      tar -cf - --exclude=no-gil . | (cd no-gil; tar -xf -)
+      mkdir no-gil build-jit
+      tar -cf - --exclude=no-gil --exclude=build-jit . | tar -xC no-gil
+      tar -cf - --exclude=no-gil --exclude=build-jit . | tar -xC build-jit
 
-  # Experimental JIT support
-  #
-  # --enable-optimizations with clang requires PGO support (in particular,
-  # we're missing libclang_rt.profile). This build configuration won't be
-  # optimal and might not produce any performance gains.
   - uses: autoconf/configure
     with:
       opts: |
-        CC=clang \
-        --enable-experimental-jit=yes-off \
-        --with-tail-call-interp \
+        --enable-optimizations \
         ${{vars.python-config}}
 
   - uses: autoconf/make
@@ -232,6 +223,93 @@ subpackages:
               runs: |
                 ${{vars.python-t}} -c 'import sysconfig; assert(sysconfig.get_config_var("Py_GIL_DISABLED"))'
 
+  - name: "${{package.name}}-jit"
+    description: "Python with experimental JIT support"
+    dependencies:
+      provides:
+        - python3-jit=${{package.full-version}}
+        - python-3-jit=${{package.full-version}}
+      runtime:
+        # 'import _tkinter' will fail with ImportError on 'libtcl9tk9.0.so'
+        # which is provided by tk.  melange SCA does not find this dependency.
+        - tk
+    pipeline:
+      - working-directory: build-jit
+        pipeline:
+          # Experimental JIT support
+          #
+          # --enable-optimizations with clang requires PGO support (in particular,
+          # we're missing libclang_rt.profile). This build configuration won't be
+          # optimal and might not produce any performance gains.
+          - runs: |
+              export PATH="/usr/lib/llvm-${{vars.clang-version}}/bin:$PATH"
+          - uses: autoconf/configure
+            with:
+              opts: |
+                CC=clang-${{vars.clang-version}} \
+                --enable-experimental-jit=yes \
+                --with-tail-call-interp \
+                ${{vars.python-config}}
+          - uses: autoconf/make
+          - uses: autoconf/make-install
+          - name: "Clean out base items"
+            runs: |
+              find ${{targets.subpkgdir}}/usr/lib -type f -name 'libpython*.a' -exec rm -rf '{}' +
+              find ${{targets.subpkgdir}}/usr/lib -type d -name 'test' -exec rm -rf '{}' +
+              find ${{targets.subpkgdir}}/usr/lib -type d -name 'idle_test' -exec rm -rf '{}' +
+
+              cd ${{targets.subpkgdir}}/usr/bin
+              rm idle3*
+              rm ${{targets.subpkgdir}}/usr/lib/libpython3.so
+
+              # add dubious python -> python3 link
+              ln -s python3 ${{targets.subpkgdir}}/usr/bin/python
+
+              # Drop site-packages README.txt to avoid SCA dep on python3~3.M
+              rm -R ${{targets.subpkgdir}}/usr/lib/${{vars.python}}/site-packages
+
+              rm -R ${{targets.subpkgdir}}/usr/lib/${{vars.python}}/idlelib
+              rm -R ${{targets.subpkgdir}}/usr/lib/${{vars.python}}/ensurepip/_bundled/
+
+              rm ${{targets.subpkgdir}}/usr/bin/pydoc3*
+              rm -R ${{targets.subpkgdir}}/usr/include
+              rm -R ${{targets.subpkgdir}}/usr/share
+              rm ${{targets.subpkgdir}}/usr/lib/pkgconfig/python-3.14-*.pc ${{targets.subpkgdir}}/usr/lib/pkgconfig/python3-*.pc
+          - name: "Precompile .py files"
+            runs: |
+              find ${{targets.subpkgdir}}/usr/lib -type f -name '*.pyc' -exec rm -rf '{}' +
+              find ${{targets.subpkgdir}}/usr/lib -type f -name '*.pyo' -exec rm -rf '{}' +
+
+              export LD_LIBRARY_PATH="${{targets.subpkgdir}}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+              ${{targets.subpkgdir}}/usr/bin/${{vars.python}} -m compileall --invalidation-mode=unchecked-hash \
+                  -r100 ${{targets.subpkgdir}}/usr/lib/
+          - uses: strip
+    test:
+      pipeline:
+        - working-directory: build-jit
+          pipeline:
+            - uses: test/tw/ldd-check
+            - uses: test/tw/symlink-check
+            - uses: test/tw/ver-check
+              with:
+                bins: python ${{vars.python}}
+            - uses: test/tw/help-check
+              with:
+                bins: python ${{vars.python}}
+            - name: Verify functioning JIT
+              runs: |
+                ${{vars.python}} -c "
+                import sys
+                def fib(n):
+                    if n < 2:
+                        return n
+                    return fib(n-1) + fib(n-2)
+                result = fib(20)
+                print(f'JIT test: fib(20) = {result}')
+                assert result == 6765, f'Expected 6765, got {result}'
+                print('JIT test passed!')
+                "
+
   - name: "${{package.name}}-base"
     description: "${{package.name}} without /usr/bin/python3"
     dependencies:
@@ -320,9 +398,14 @@ subpackages:
           # Note this sets the capability the test using getcap fails but the
           # capability is set in images with this package.
           setcap cap_net_bind_service=+eip "${{targets.contextdir}}/usr/bin/${{vars.python}}"
+    test:
+      pipeline:
+        - uses: test/tw/contains-files
 
   - name: "${{package.name}}-tk"
     dependencies:
+      provides:
+        - py3.14-tkinter=${{package.full-version}}
       runtime:
         - ${{package.name}}-base=${{package.full-version}}
         # 'import _tkinter' will fail with ImportError on 'libtcl9tk9.0.so'
@@ -357,8 +440,10 @@ subpackages:
   - name: "${{package.name}}-dev"
     description: "python3.14 development headers"
     dependencies:
+      provides:
+        - python3-dev=0
+        - python-3-dev=0
       runtime:
-        - clang-${{vars.clang-version}}
         - ${{package.name}}=${{package.full-version}}
         - ${{package.name}}-base-dev=${{package.full-version}}
     pipeline:
@@ -372,12 +457,14 @@ subpackages:
              "${{targets.destdir}}"/$d/python3-embed.pc \
              "${{targets.destdir}}"/$d/python3.pc \
              "${{targets.subpkgdir}}/$d/"
+    test:
+      pipeline:
+        - uses: test/pkgconf
 
   - name: "${{package.name}}-base-dev"
     description: "python3 development headers"
     dependencies:
       runtime:
-        - clang-${{vars.clang-version}}
         - ${{package.name}}-base=${{package.full-version}}
     pipeline:
       - runs: |
@@ -388,6 +475,9 @@ subpackages:
           mv -v "${{targets.destdir}}"/$d/config-${{vars.pyversion}}* \
              "${{targets.subpkgdir}}"/$d
       - uses: split/dev
+    test:
+      pipeline:
+        - uses: test/tw/devpackage
 
 test:
   pipeline:
@@ -406,18 +496,6 @@ test:
         python3 version-check.py ${{package.version}}
     - name: Verify working python3 -m venv
       runs: |
-        d=$(mktemp -d)
-        python3 -m venv "$d"
-        $d/bin/pip list
-        $d/bin/pip check
-        rm -Rf "$d"
-    - name: Verify functioning JIT
-      runs: |
-        export PYTHON_JIT=1
-        python3 jit-check.py
-    - name: (free-threaded) Verify working python3 -m venv
-      runs: |
-        export PYTHON_JIT=1
         d=$(mktemp -d)
         python3 -m venv "$d"
         $d/bin/pip list

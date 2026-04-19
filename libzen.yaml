@@ -1,10 +1,13 @@
 package:
   name: libzen
   version: 0.4.41
-  epoch: 2
+  epoch: 4 # go/wolfi-rsc/libzen
   description: "ZenLib is a C++ utility library"
   copyright:
     - license: Zlib
+  resources:
+    cpu: "2"
+    memory: 5Gi
 
 environment:
   contents:
@@ -39,9 +42,31 @@ subpackages:
     pipeline:
       - uses: split/dev
     test:
+      environment:
+        contents:
+          packages:
+            - libzen-dev
+            - build-base
+            - pkgconf
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
+        - name: Test compile and link with libzen
+          runs: |
+            set -euo pipefail
+
+            tee test.cpp <<'EOF'
+            #include <ZenLib/Ztring.h>
+            int main() {
+                ZenLib::Ztring z;
+                z.From_UTF8("hello");
+                return z.empty() ? 1 : 0;
+            }
+            EOF
+
+            g++ $(pkg-config --cflags libzen) test.cpp -o test $(pkg-config --libs libzen)
+            ./test
 
 update:
   enabled: true
@@ -50,5 +75,26 @@ update:
     strip-prefix: v
 
 test:
+  environment:
+    contents:
+      packages:
+        - libzen-dev
+        - build-base
+        - pkgconf
   pipeline:
     - uses: test/tw/ldd-check
+    - name: Test compile and link with libzen
+      runs: |
+        set -euo pipefail
+
+        tee test.cpp <<'EOF'
+        #include <ZenLib/Ztring.h>
+        int main() {
+            ZenLib::Ztring z;
+            z.From_UTF8("hello");
+            return z.empty() ? 1 : 0;
+        }
+        EOF
+
+        g++ $(pkg-config --cflags libzen) test.cpp -o test $(pkg-config --libs libzen)
+        ./test

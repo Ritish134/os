@@ -1,0 +1,102 @@
+package:
+  name: microvm-observability-hook
+  version: 0.0.4
+  epoch: 1
+  description: Systemd-managed tetragon observability for melange microvm builds
+  copyright:
+    - license: Apache-2.0
+  dependencies:
+    runtime:
+      - tetragon
+
+environment:
+  contents:
+    packages:
+      - busybox
+
+pipeline:
+  # Install the systemd unit file for tetragon
+  - runs: |
+      mkdir -p ${{targets.destdir}}/usr/lib/systemd/system
+      cat > ${{targets.destdir}}/usr/lib/systemd/system/tetragon.service <<'UNIT_EOF'
+      [Unit]
+      Description=Tetragon eBPF Security Observability
+      Documentation=https://tetragon.io
+      After=sys-kernel-debug.mount sys-fs-bpf.mount sys-kernel-tracing.mount
+      Before=sshd.service
+      Wants=sys-kernel-debug.mount sys-fs-bpf.mount sys-kernel-tracing.mount
+
+      [Service]
+      Type=simple
+      ExecStartPre=/bin/sh -c 'mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug'
+      ExecStartPre=/bin/sh -c 'mountpoint -q /sys/kernel/tracing || mount -t tracefs none /sys/kernel/tracing'
+      ExecStartPre=/bin/sh -c 'mountpoint -q /sys/fs/bpf || mount -t bpf none /sys/fs/bpf'
+      ExecStartPre=/bin/mkdir -p /var/log/observability
+      ExecStart=/usr/bin/tetragon --bpf-lib /var/lib/tetragon/ --tracing-policy-dir /etc/tetragon/tetragon.tp.d --export-filename /var/log/observability/events.json --export-file-max-size-mb 50 --export-file-max-backups 0 --export-file-compress=false --log-level info --log-format json --enable-process-cred=false --enable-process-ns=false
+      Restart=on-failure
+      RestartSec=2
+      TimeoutStartSec=30
+      TimeoutStopSec=10
+      KillMode=mixed
+      KillSignal=SIGTERM
+
+      [Install]
+      WantedBy=multi-user.target
+      UNIT_EOF
+
+  # Install Phase 1 TracingPolicy for network monitoring
+  - runs: |
+      mkdir -p ${{targets.destdir}}/etc/tetragon/tetragon.tp.d
+      cat > ${{targets.destdir}}/etc/tetragon/tetragon.tp.d/network-monitor.yaml <<'POLICY_EOF'
+      apiVersion: cilium.io/v1alpha1
+      kind: TracingPolicy
+      metadata:
+        name: "network-monitor"
+      spec:
+        kprobes:
+        - call: "tcp_connect"
+          syscall: false
+          args:
+          - index: 0
+            type: "sock"
+          selectors:
+          - matchArgs:
+            - index: 0
+              operator: "Family"
+              values:
+              - "AF_INET"
+              - "AF_INET6"
+        - call: "tcp_close"
+          syscall: false
+          args:
+          - index: 0
+            type: "sock"
+          selectors:
+          - matchArgs:
+            - index: 0
+              operator: "Family"
+              values:
+              - "AF_INET"
+              - "AF_INET6"
+      POLICY_EOF
+
+  # Enable tetragon service so it starts on boot
+  - runs: |
+      mkdir -p ${{targets.destdir}}/etc/systemd/system/multi-user.target.wants
+      ln -sf /usr/lib/systemd/system/tetragon.service \
+        ${{targets.destdir}}/etc/systemd/system/multi-user.target.wants/tetragon.service
+
+test:
+  pipeline:
+    - runs: |
+        test -f /usr/lib/systemd/system/tetragon.service
+        test -f /etc/tetragon/tetragon.tp.d/network-monitor.yaml
+        test -L /etc/systemd/system/multi-user.target.wants/tetragon.service
+        grep -qF 'ExecStart=/usr/bin/tetragon' /usr/lib/systemd/system/tetragon.service
+        grep -qF 'Before=sshd.service' /usr/lib/systemd/system/tetragon.service
+        grep -qF 'tcp_connect' /etc/tetragon/tetragon.tp.d/network-monitor.yaml
+
+update:
+  enabled: false
+  exclude-reason: |
+    This is a custom hook for microvm-init observability integration

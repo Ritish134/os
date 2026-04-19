@@ -1,13 +1,16 @@
 package:
   name: cloud-sql-proxy-2.16
   version: "2.16.0"
-  epoch: 12 # GHSA-j5w8-q4qc-rx2x
+  epoch: 19 # GHSA-vffh-x6r8-xx99
   description: The Cloud SQL Auth Proxy is a utility for ensuring secure connections to your Cloud SQL instances
   copyright:
     - license: Apache-2.0
   dependencies:
     provides:
       - cloud-sql-proxy=${{package.full-version}}
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 pipeline:
   - uses: git-checkout
@@ -21,6 +24,8 @@ pipeline:
       deps: |-
         github.com/go-viper/mapstructure/v2@v2.4.0
         golang.org/x/crypto@v0.45.0
+        google.golang.org/grpc@v1.79.3
+        github.com/prometheus/prometheus@v0.311.2-0.20260410083055-07c6232d159b
 
   - uses: go/build
     with:
@@ -71,4 +76,9 @@ test:
 
         wait-for-it 127.0.0.1:9999 -t 5 --strict
 
-        grep 'Authorizing with the credentials file at "fake-creds.json"' out.log
+        grep -F 'Authorizing with the credentials file at "fake-creds.json"' out.log
+
+environment:
+  contents:
+    packages:
+      - go-1.25

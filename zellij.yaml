@@ -1,10 +1,13 @@
 package:
   name: zellij
-  version: "0.43.1"
-  epoch: 1
+  version: "0.44.1"
+  epoch: 3 # GHSA-965h-392x-2mh5
   description: A terminal workspace with batteries included
   copyright:
     - license: MIT
+  resources:
+    cpu: "7"
+    memory: 14Gi
 
 environment:
   contents:
@@ -14,7 +17,7 @@ environment:
       - ca-certificates-bundle
       - cargo-auditable
       - git
-      - openssl-dev
+      - openssl-hardened-dev
       - rust
 
 pipeline:
@@ -22,11 +25,7 @@ pipeline:
     with:
       repository: https://github.com/zellij-org/zellij
       tag: v${{package.version}}
-      expected-commit: d121d8e0162b844a7c7f95e9bff7e9f8d2cef5e9
-
-  - uses: patch
-    with:
-      patches: GHSA-r8w9-5wcg-vfj7.patch
+      expected-commit: f2af4fe5e35a553aa9b0494ca86d85b73c625c66
 
   - uses: rust/cargobump
 
@@ -61,6 +60,9 @@ subpackages:
     dependencies:
       runtime:
         - zellij
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
 
   - name: zellij-zsh-completion
     description: zsh completion for zellij
@@ -73,6 +75,9 @@ subpackages:
     dependencies:
       runtime:
         - zellij
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
 
   - name: zellij-fish-completion
     description: fish completion for zellij
@@ -85,6 +90,9 @@ subpackages:
     dependencies:
       runtime:
         - zellij
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
 
 update:
   enabled: true

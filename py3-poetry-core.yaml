@@ -1,15 +1,19 @@
 package:
   name: py3-poetry-core
-  version: "2.2.1"
-  epoch: 0
+  version: "2.3.2"
+  epoch: 1 # add pip-check tests and use import var
   description: Poetry PEP 517 Build Backend
   copyright:
     - license: MIT
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 vars:
   pypi-package: poetry-core
+  import: poetry
 
 data:
   - name: py-versions
@@ -33,7 +37,7 @@ pipeline:
     with:
       repository: https://github.com/python-poetry/poetry-core
       tag: ${{package.version}}
-      expected-commit: 548f5c215b535cae4b9dfc1ef7c828602471c181
+      expected-commit: 23bf0ac6b8a50a0756ef4d657d8ff67aef88aa67
 
 subpackages:
   - range: py-versions
@@ -50,10 +54,11 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
-            import: poetry
+            import: ${{vars.import}}
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.
@@ -65,16 +70,18 @@ subpackages:
         - py3.13-${{vars.pypi-package}}
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python3.10
-            import: poetry
+            import: ${{vars.import}}
 
 test:
   pipeline:
+    - uses: test/tw/pip-check
     - uses: python/import
       with:
-        import: poetry
+        import: ${{vars.import}}
 
 update:
   enabled: true

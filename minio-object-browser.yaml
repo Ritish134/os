@@ -1,7 +1,7 @@
 package:
   name: minio-object-browser
   version: "2.0.4"
-  epoch: 3 # CVE-2025-61729
+  epoch: 11 # GHSA-vffh-x6r8-xx99
   description: Simple UI for MinIO Object Storage
   copyright:
     - license: AGPL-3.0-only
@@ -15,7 +15,7 @@ var-transforms:
 pipeline:
   - uses: git-checkout
     with:
-      repository: https://github.com/minio/object-browser
+      repository: https://github.com/chainguard-forks/minio-console
       tag: v${{package.version}}
       expected-commit: 2017f33b26e1cb632dd208ab7d91add1d06990fd
 
@@ -23,6 +23,7 @@ pipeline:
     with:
       deps: |-
         golang.org/x/crypto@v0.45.0
+        github.com/prometheus/prometheus@v0.311.2-0.20260410083055-07c6232d159b
 
   - uses: go/build
     with:
@@ -33,8 +34,9 @@ pipeline:
 update:
   enabled: true
   github:
-    identifier: minio/object-browser
+    identifier: chainguard-forks/minio-console
     strip-prefix: v
+    use-tag: true
 
 subpackages:
   - name: ${{package.name}}-iamguarded-compat
@@ -89,3 +91,8 @@ test:
         post: |
           wait-for-it -t 5 --strict localhost:9090 -- echo "Server is up"
           curl -sfSL http://localhost:9090 | grep "You need to enable JavaScript"
+
+environment:
+  contents:
+    packages:
+      - go-1.25

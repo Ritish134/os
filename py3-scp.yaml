@@ -1,12 +1,15 @@
 package:
   name: py3-scp
   version: 0.15.0
-  epoch: 4
+  epoch: 7 # go/wolfi-rsc/py3-scp
   description: scp module for paramiko
   copyright:
     - license: LGPL-2.1-or-later
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   pypi-package: scp
@@ -40,6 +43,8 @@ subpackages:
       provider-priority: ${{range.value}}
       provides:
         - py3-${{vars.pypi-package}}
+      runtime:
+        - py${{range.key}}-paramiko
     pipeline:
       - uses: py/pip-build-install
         with:
@@ -47,6 +52,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}

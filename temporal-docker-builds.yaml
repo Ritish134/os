@@ -2,14 +2,18 @@
 package:
   name: temporal-docker-builds
   # This project doesn't do releases and everything is commit based.
-  version: "0.0_git20260107"
-  epoch: 0
+  version: "0.0_git20260226"
+  epoch: 4 # go/wolfi-rsc/temporal-docker-builds
   description: Temporal service Docker images build
   copyright:
     - license: MIT
   dependencies:
     runtime:
+      - busybox # for the other utilities in https://github.com/temporalio/docker-builds/blob/main/docker/entrypoint.sh
       - posix-libc-utils # Required for getent
+  resources:
+    cpu: "1"
+    memory: 1Gi
 
 vars:
   commit: 70f8b8bbda3723fe7c8f822cc8aa379598ac8c86
@@ -26,7 +30,7 @@ pipeline:
     with:
       repository: https://github.com/temporalio/docker-builds.git
       branch: main
-      expected-commit: a84a7516de34285b543be45c2235b1fe79852101
+      expected-commit: d0ab85e186018d8bbf57e3dc52f1e24944933502
 
   - runs: |
       mkdir -p "${{targets.destdir}}"/etc/temporal
@@ -54,9 +58,21 @@ update:
 
 test:
   pipeline:
-    - name: "verify a number of well-known files exists in the package"
+    - name: "Verify scripts are installed and executable"
       runs: |
-        stat /etc/temporal/entrypoint.sh
-        stat /etc/temporal/auto-setup.sh
-        stat /etc/temporal/setup-develop.sh
-        stat /etc/temporal/start-temporal.sh
+        set -euo pipefail
+
+        # Verify all four scripts exist and are executable
+        for script in entrypoint.sh start-temporal.sh setup-develop.sh auto-setup.sh; do
+          stat /etc/temporal/$script
+          test -x /etc/temporal/$script || { echo "ERROR: /etc/temporal/$script is not executable"; exit 1; }
+        done
+    - name: "Verify shell script syntax"
+      uses: test/tw/shell-syntax-check
+      with:
+        files: /etc/temporal/entrypoint.sh /etc/temporal/start-temporal.sh /etc/temporal/setup-develop.sh /etc/temporal/auto-setup.sh
+    - name: "Verify shell script dependencies"
+      uses: test/tw/shell-deps-check
+      with:
+        files: /etc/temporal/entrypoint.sh /etc/temporal/start-temporal.sh /etc/temporal/setup-develop.sh /etc/temporal/auto-setup.sh
+        strict: false

@@ -1,10 +1,13 @@
 package:
   name: doctest
-  version: "2.4.12"
-  epoch: 1
+  version: "2.5.2"
+  epoch: 0 # go/wolfi-rsc/doctest
   description: C++11/14/17/20/23 single-header testing framework
   copyright:
     - license: MIT
+  resources:
+    cpu: "1"
+    memory: 2Gi
 
 environment:
   contents:
@@ -17,7 +20,7 @@ environment:
 pipeline:
   - uses: git-checkout
     with:
-      expected-commit: 1da23a3e8119ec5cce4f9388e91b065e20bf06f5
+      expected-commit: 6804767ee637789db8a5cb281381cae98dc36906
       repository: https://github.com/doctest/doctest
       tag: v${{package.version}}
 

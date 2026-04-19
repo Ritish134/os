@@ -1,32 +1,37 @@
 package:
   name: kube-rbac-proxy
-  version: "0.20.1"
-  epoch: 1 # CVE-2025-61729
+  version: "0.21.2"
+  epoch: 1 # GHSA-hfvc-g4fc-pqhx
   description: Kubernetes RBAC authorizing HTTP proxy for a single upstream.
   copyright:
     - license: Apache-2.0
+  resources:
+    cpu: "1"
+    memory: 6Gi
 
 environment:
   contents:
     packages:
-      - build-base
       - busybox
       - ca-certificates-bundle
-      - go
 
 pipeline:
   - uses: git-checkout
     with:
       repository: https://github.com/brancz/kube-rbac-proxy
       tag: v${{package.version}}
-      expected-commit: b578851a0a5793ba536ae11ca9239864d87604c5
+      expected-commit: 739a83b95aa9437a9336ea2bc28ba8a1547bb710
 
-  - runs: |
-      make build
-      mkdir -p ${{targets.destdir}}/usr/bin
-      mv _output/kube-rbac-proxy ${{targets.destdir}}/usr/bin
+  - uses: go/bump
+    with:
+      deps: |-
+        go.opentelemetry.io/otel/sdk@v1.43.0
 
-  - uses: strip
+  - uses: go/build
+    with:
+      packages: ./cmd/kube-rbac-proxy
+      output: kube-rbac-proxy
+      ldflags: -X k8s.io/component-base/version.gitVersion=v${{package.version}}
 
 update:
   enabled: true
@@ -47,12 +52,18 @@ test:
         - wait-for-it
         - http-echo
   pipeline:
-    - runs: |
-        kube-rbac-proxy --version
-        kube-rbac-proxy --help
+    - uses: test/tw/ldd-check
+    - uses: test/tw/ver-check
+      with:
+        bins: kube-rbac-proxy
+        version-flag: --version
+    - uses: test/tw/help-check
+      with:
+        bins: kube-rbac-proxy
     - uses: test/kwok/cluster
     - name: "setting up cluster"
       runs: |
+        set -euo pipefail
         # Create tls certificates
         mkdir -p /etc/tls-key-cert-pair
         mkcert -install

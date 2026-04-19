@@ -1,7 +1,11 @@
 package:
   name: openssl
-  version: "3.6.0"
-  epoch: 6
+  # NOTE: IF YOU UPDATE OPENSSL, DO REVERSE DEPENDENCY TESTS TO ENSURE THERE ARE
+  #       NO REGRESSIONS BEFORE YOU MERGE A NEW VERSION. INSTRUCTIONS HERE:
+  #
+  #       https://chainguard.engineering/docs/packages/playbooks/core-components/openssl-updates/
+  version: "3.6.2"
+  epoch: 2
   description: "the OpenSSL cryptography suite"
   copyright:
     - license: Apache-2.0
@@ -11,8 +15,12 @@ package:
       - openssl-config<3.4.0
     replaces-priority: 5
   resources:
-    cpu: 16
-    memory: 16Gi
+    cpu: "10"
+    memory: 7Gi
+
+vars:
+  # Look for symbols from glibc > 2.28
+  is-eco-build: "! nm -D /usr/lib/libcrypto.so.3 | grep -Eq '@GLIBC_2\\.(29|[3-9][0-9])'"
 
 environment:
   contents:
@@ -40,7 +48,7 @@ pipeline:
     with:
       repository: https://github.com/openssl/openssl
       tag: openssl-${{package.version}}
-      expected-commit: 7b371d80d959ec9ab4139d09d78e83c090de9779
+      expected-commit: fe686e15d84334b284f883118ed92f64b409b3aa
 
   - uses: patch
     with:
@@ -48,9 +56,15 @@ pipeline:
         fix-jitter.patch
         0001-baseprovider-add-MD5-and-SHA1.patch
         0001-fips-block-HMAC-calculation-with-unapproved-digests.patch
+        0001-fips-retain-FIPS-140-2-TLSv1.2-connectivity.patch
+        0001-param-build-allow-NULL-buf-in-push-octet-string-for-zero-length.patch
 
   - name: Perform throw-away canary tests of jitter and non-validated fips
     runs: |
+      if [ -d /usr/lib/oldglibc ]; then
+        # all the jitter stuff assumes glibc 2.34+
+        exit 0
+      fi
       mkdir -p build-jitter-fips-tests/
       cd build-jitter-fips-tests/
       ../Configure --with-rand-seed=none enable-jitter enable-fips -DOPENSSL_DEFAULT_SEED_SRC=JITTER --debug
@@ -132,6 +146,9 @@ subpackages:
     description: "OpenSSL debug symbols"
     pipeline:
       - uses: split/debug
+    test:
+      pipeline:
+        - uses: test/tw/debugpackage
 
   - name: "openssl-doc"
     description: "OpenSSL documentation"
@@ -197,6 +214,7 @@ test:
   environment:
     contents:
       packages:
+        - binutils # nm for is-eco-build
         - curl
         - gdb
         - git
@@ -227,6 +245,10 @@ test:
         ! wget https://expired.badssl.com/
     - name: Verify jitter cherry-pick has no effect by default
       runs: |
+        if ${{vars.is-eco-build}}; then
+          # all the jitter stuff assumes glibc 2.34+
+          exit 0
+        fi
         # Possibly python gdb would be easier to read
         cat <<EOF >openssl.gdb
         set pagination off
@@ -248,11 +270,15 @@ test:
         EOF
         gdb --batch --command ./openssl.gdb openssl
         # Assert that jitter entropy was not used
-        grep -q 'Breakpoint 1,' gdb.log && exit 1
+        grep -F 'Breakpoint 1,' gdb.log && exit 1
         # Assert that getrandom syscall wrapper was used
-        grep -q 'Breakpoint 2,' gdb.log || exit 1
+        grep -F 'Breakpoint 2,' gdb.log || exit 1
     - name: Verify jitter entropy source opt-in works
       runs: |
+        if ${{vars.is-eco-build}}; then
+          # all the jitter stuff assumes glibc 2.34+
+          exit 0
+        fi
         cat <<EOF >openssl.cnf
         openssl_conf = openssl_init
         [openssl_init]
@@ -287,9 +313,9 @@ test:
         EOF
         gdb --batch --command ./openssl.gdb openssl
         # Assert that jitter entropy was used
-        grep -q 'Breakpoint 1,' jitter.log || exit 1
+        grep -F 'Breakpoint 1,' jitter.log || exit 1
         # Assert that getrandom syscall wrapper was not used
-        grep -q 'Breakpoint 2,' jitter.log && exit 1
+        grep -F 'Breakpoint 2,' jitter.log && exit 1
     - name: docker-dind certificate generation
       runs: |
         # Distilled from dockerd-entrypoint.sh
@@ -324,4 +350,4 @@ update:
   github:
     identifier: openssl/openssl
     strip-prefix: openssl-
-    tag-filter-prefix: openssl-
+    tag-filter-prefix: openssl-3.6.

@@ -1,12 +1,15 @@
 package:
   name: py3-hatch-jupyter-builder
   version: 0.9.1
-  epoch: 4
+  epoch: 8 # fix bin test error suppression
   description: A hatch plugin to help build Jupyter packages
   copyright:
     - license: BSD-3-Clause
   dependencies:
     provider-priority: 0
+  resources:
+    cpu: "1"
+    memory: 3Gi
 
 vars:
   pypi-package: hatch-jupyter-builder
@@ -52,6 +55,7 @@ subpackages:
       - uses: strip
     test:
       pipeline:
+        - uses: test/tw/pip-check
         - uses: python/import
           with:
             python: python${{range.key}}
@@ -74,21 +78,9 @@ subpackages:
           mkdir -p ${{targets.contextdir}}/usr/
           mv ./cleanup/${{range.key}}/bin ${{targets.contextdir}}/usr/
     test:
-      environment:
-        contents:
-          packages:
-            - apk-tools
       pipeline:
         - runs: |
-            apk info -L py${{range.key}}-${{vars.pypi-package}}-bin > "pkg.list"
-            echo "Please write a test for these:"
-            grep usr/bin/ pkg.list > bins.list
-            sed 's,^,> ,' bins.list
-
-            while read line; do
-              echo "== $line =="
-              /"$line" --help || :
-            done < bins.list
+            hatch-jupyter-builder --help
 
   - name: py3-supported-${{vars.pypi-package}}
     description: meta package providing ${{vars.pypi-package}} for supported python versions.

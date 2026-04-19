@@ -1,10 +1,13 @@
 package:
   name: cairo
   version: "1.18.4"
-  epoch: 1
+  epoch: 6
   description: A vector graphics library
   copyright:
     - license: LGPL-2.1
+  resources:
+    cpu: "2"
+    memory: 7Gi
 
 environment:
   contents:
@@ -29,10 +32,11 @@ environment:
       - zlib-dev
 
 pipeline:
-  - uses: fetch
+  - uses: git-checkout
     with:
-      expected-sha256: 6d9281e786fd289d382324d4588d59973a36911e1865b40e64f9ec39936ceba8
-      uri: https://gitlab.freedesktop.org/cairo/cairo/-/archive/${{package.version}}/cairo-${{package.version}}.tar.bz2
+      repository: https://gitlab.freedesktop.org/cairo/cairo
+      tag: ${{package.version}}
+      expected-commit: 4541e0cd3a751b85e52e2a83d02ac6145a5efa85
 
   - runs: |
       meson . output \
@@ -52,6 +56,19 @@ subpackages:
   - name: cairo-static
     pipeline:
       - uses: split/static
+    test:
+      pipeline:
+        - uses: test/tw/staticpackage
+    dependencies:
+      runtime:
+        - fontconfig-static
+        - freetype-static
+        - glib-static
+        - libpng-static
+        - libx11-static
+        - libxcb-static
+        - pixman-static
+        - zlib-static
     description: cairo static
 
   - name: cairo-dev
@@ -70,6 +87,7 @@ subpackages:
     description: cairo dev
     test:
       pipeline:
+        - uses: test/tw/devpackage
         - uses: test/pkgconf
         - uses: test/tw/ldd-check
 
@@ -98,8 +116,9 @@ subpackages:
     test:
       pipeline:
         - uses: test/tw/ldd-check
-        - runs: |
-            cairo-trace --help
+        - uses: test/tw/help-check
+          with:
+            bins: cairo-trace
 
 update:
   enabled: true
@@ -132,10 +151,9 @@ test:
         ldconfig -p | grep libcairo
         ldconfig -p | grep libcairo-gobject
         ldconfig -p | grep libcairo-script-interpreter
-    - name: "Check cairo-trace tool"
-      runs: |
-        which cairo-trace
-        cairo-trace --version
+    - uses: test/tw/ver-check
+      with:
+        bins: cairo-trace
     - name: "Compile and run a simple cairo program"
       runs: |
         cat << EOF > test_cairo.c
